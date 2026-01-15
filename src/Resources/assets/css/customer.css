@@ -1,0 +1,13 @@
+/**
+ * GolobaRMA - Customer Form Styles
+ * 
+ * NOTA: Este archivo está preparado para estilos custom futuros.
+ * Actualmente NO se compila. Usamos solo clases Tailwind del core de Bagisto.
+ */
+
+/* === DESCOMENTA PARA ACTIVAR TAILWIND === */
+/* 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+*/

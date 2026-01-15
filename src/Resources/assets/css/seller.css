@@ -1,0 +1,30 @@
+/**
+ * GolobaRMA - Seller Panel Styles
+ * 
+ * NOTA: Este archivo está preparado para estilos custom futuros.
+ * Actualmente NO se compila. Usamos solo clases Tailwind del core de Bagisto.
+ * 
+ * Para activar estilos custom:
+ * 1. Descomentar @tailwind directives abajo
+ * 2. Configurar vite.config.js
+ * 3. Ejecutar: npm install && npm run build
+ * 4. Publicar: php artisan vendor:publish --tag=goloba-rma-assets
+ */
+
+/* === DESCOMENTA PARA ACTIVAR TAILWIND === */
+/* 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+*/
+
+/* === ESTILOS CUSTOM (cuando sea necesario) === */
+/*
+.goloba-rma-card {
+    @apply bg-white rounded-lg shadow p-6;
+}
+
+.goloba-rma-badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+}
+*/

@@ -1,0 +1,28 @@
+{
+    "name": "goloba/goloba-rma",
+    "description": "Extensión de RMA para Goloba Marketplace con soporte para vendedores y derecho de retracto",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Goloba Team",
+            "email": "dev@goloba.com"
+        }
+    ],
+    "require": {
+        "php": "^8.1|^8.2",
+        "bagisto/bagisto-rma": "^2.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Goloba\\GolobaRMA\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Goloba\\GolobaRMA\\Providers\\GolobaRMAServiceProvider"
+            ]
+        }
+    }
+}
