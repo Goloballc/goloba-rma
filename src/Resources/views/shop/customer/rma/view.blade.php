@@ -63,10 +63,22 @@
         
         // Obtener información del seller si existe
         $sellerInfo = null;
-        if (isset($rmaData['order']) && $rmaData['order']->marketplace_seller_id) {
-            $sellerInfo = app('Webkul\Marketplace\Repositories\SellerRepository')
-                ->with('shop')
-                ->find($rmaData['order']->marketplace_seller_id);
+        $shopName = 'Vendedor';
+        if (isset($rmaData['order'])) {
+            $marketplaceOrder = app('Webkul\Marketplace\Repositories\OrderRepository')
+                ->where('order_id', $rmaData['order']->id)
+                ->first();
+            
+            if ($marketplaceOrder && $marketplaceOrder->marketplace_seller_id) {
+                // Cargar el seller directamente desde la tabla
+                $seller = \DB::table('marketplace_sellers')
+                    ->where('id', $marketplaceOrder->marketplace_seller_id)
+                    ->first();
+                
+                if ($seller && $seller->shop_title) {
+                    $shopName = $seller->shop_title;
+                }
+            }
         }
     @endphp
 
@@ -707,7 +719,7 @@
                                         @lang('rma::app.shop.view-customer-rma.admin')
                                     </strong>
                                     <strong v-else-if="message.is_seller == 1">
-                                        {{ $sellerInfo && $sellerInfo->shop ? $sellerInfo->shop->name : 'Vendedor' }}
+                                        {{ $shopName }}
                                     </strong>
                                     <strong v-else>
                                         {{ auth()->guard('customer')->user()->name }}
