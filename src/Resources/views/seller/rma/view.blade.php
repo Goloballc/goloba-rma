@@ -755,6 +755,103 @@
                 }
             });
         </script>
+    </div>
+
+    <!-- Selector de Estado RMA (similar al admin) -->
+    @php
+        $statusArr = [];
+        $rmaActiveStatus = $rmaActiveStatus->toarray();
+        
+        if ($rmaData['rma_status'] == 'Pending') {
+            $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
+                return in_array($status, ["Accept", "Declined"]);
+            });
+        } else {
+            if ($productDetails['0']?->resolution != 'cancel-items') {
+                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
+                    return $status !== "Item Canceled" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending";
+                });
+            } else {
+                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
+                    return $status!== "Received Package" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending";
+                });
+            }
+        }
+        $statusArr = array_values($rmaActiveStatus);
+    @endphp
+
+    @if (
+        $rmaData['rma_status'] != 'Solved' 
+        && $rmaData['status'] != 1
+        && $rmaData['order']['status'] != 'canceled' 
+        && $rmaData['order']['status'] != 'closed'
+    )
+        @php($flag = 0)
+        
+        @if ($rmaData['rma_status'] == 'Item Canceled')
+            @php($flag = 0)
+        @elseif ($rmaData['rma_status'] == 'Received Package')
+            @php($flag = 0)
+        @elseif ($rmaData['rma_status'] == 'Declined')
+            @php($flag = 0)
+        @elseif ($rmaData['rma_status'] == 'Canceled')
+            @php($flag = 0)
+        @elseif ($rmaData['status'] == 1 && $rmaData['resolution'] == 'Replace')
+            @php($flag = 0)
+        @elseif ($rmaData['resolution'] == 'Return' && $rmaData['status'] == 1)
+            @php($flag = 0)
+        @else
+            @php($flag = 1)
+        @endif
+
+        @if (
+            ! empty($flag)
+            && $flag == 1
+            && $rmaData['status'] == 0
+            && $orderDetails['status'] != 'closed'
+        )
+            <div class="mt-6 bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold mb-4">Cambiar Estado del RMA</h2>
+                
+                <form 
+                    method="POST" 
+                    action="{{ route('goloba.seller.rma.save.status') }}"
+                    class="space-y-4"
+                >
+                    @csrf
+                    <input type="hidden" name="rma_id" value="{{ $rmaData['id'] }}">
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Estado del RMA
+                        </label>
+                        <select 
+                            name="rma_status" 
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            required
+                        >
+                            @foreach ($statusArr as $status)
+                                <option value="{{ $status }}" {{ $rmaData['rma_status'] == $status ? 'selected' : '' }}>
+                                    {{ $status }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="mt-2 text-sm text-gray-500">
+                            Selecciona el nuevo estado para el RMA. El cliente será notificado automáticamente.
+                        </p>
+                    </div>
+
+                    <button 
+                        type="submit" 
+                        class="w-full primary-button px-5 py-2.5"
+                    >
+                        Actualizar Estado
+                    </button>
+                </form>
+            </div>
+        @endif
+    @endif
+
     @endpush
 
 </x-marketplace::shop.layouts>

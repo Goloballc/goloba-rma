@@ -75,6 +75,9 @@ Route::group([
         // Cambiar estado (aceptar/rechazar)
         Route::post('change-status', 'changeStatus')->name('goloba.seller.rma.change_status');
         
+        // Guardar estado del RMA (Awaiting, Dispatched Package, Received Package, etc.)
+        Route::post('save-rma-status', 'saveRmaStatus')->name('goloba.seller.rma.save.status');
+        
         // Chat - Obtener mensajes
         Route::get('messages', 'getMessages')->name('goloba.seller.rma.messages');
         
