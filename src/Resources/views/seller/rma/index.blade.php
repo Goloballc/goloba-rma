@@ -76,11 +76,11 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 @if($rma->rma_type === 'retracto')
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-600 text-white">
                                         Derecho de Retracto
                                     </span>
                                 @else
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-600 text-white">
                                         Estándar
                                     </span>
                                 @endif
@@ -88,10 +88,10 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 @php
                                     $badgeClass = match($rma->rma_status) {
-                                        'Pending' => 'bg-yellow-100 text-yellow-800',
-                                        'Accept' => 'bg-green-100 text-green-800',
-                                        'Declined' => 'bg-red-100 text-red-800',
-                                        default => 'bg-gray-100 text-gray-800',
+                                        'Pending' => 'bg-yellow-500 text-white',
+                                        'Accept' => 'bg-green-600 text-white',
+                                        'Declined' => 'bg-red-600 text-white',
+                                        default => 'bg-gray-600 text-white',
                                     };
                                 @endphp
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ $badgeClass }}">

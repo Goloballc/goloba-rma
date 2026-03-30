@@ -72,8 +72,11 @@ Route::group([
         // Ver detalle de RMA
         Route::get('view/{id}', 'view')->name('goloba.seller.rma.view');
         
-        // Cambiar estado (aceptar/rechazar)
+        // Cambiar estado (solo Aceptar — el rechazo va por disputa)
         Route::post('change-status', 'changeStatus')->name('goloba.seller.rma.change_status');
+        
+        // Abrir disputa (reemplaza el rechazo directo)
+        Route::post('dispute', 'submitDispute')->name('goloba.seller.rma.dispute');
         
         // Guardar estado del RMA (Awaiting, Dispatched Package, Received Package, etc.)
         Route::post('save-rma-status', 'saveRmaStatus')->name('goloba.seller.rma.save.status');

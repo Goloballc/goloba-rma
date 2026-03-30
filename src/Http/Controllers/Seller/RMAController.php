@@ -21,7 +21,11 @@ use Webkul\RMA\Repositories\{
 use Webkul\RMA\Repositories\RMAItemsRepository;
 use Webkul\RMA\Repositories\RMAStatusRepository;
 use Goloba\GolobaRMA\Models\RMA;
+use Goloba\GolobaRMA\Models\RmaDispute;
+use Goloba\GolobaRMA\Models\RmaDisputeImage;
+use Goloba\ServientregaTracking\Services\ServientregaTrackingService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class RMAController extends Controller
 {
@@ -44,6 +48,7 @@ class RMAController extends Controller
         protected RMARepository $rmaRepository,
         protected RMAStatusRepository $rmaStatusRepository,
         protected RefundRepository $refundRepository,
+        protected ServientregaTrackingService $trackingService,
     ) {
     }
 
@@ -102,6 +107,29 @@ class RMAController extends Controller
             ];
         }
         $viewData['rmaItemDetails'] = $rmaItemDetails;
+
+        // ── Tracking Servientrega ─────────────────────────────────────────────
+        // Buscamos el shipment más reciente asociado a la orden del RMA.
+        // El número de guía vive en shipments.track_number.
+        $trackingEstado  = null;
+        $trackingGuia    = null;
+
+        $shipment = \DB::table('shipments')
+            ->where('order_id', $rma->order_id)
+            ->whereNotNull('track_number')
+            ->where('track_number', '!=', '')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($shipment && !empty($shipment->track_number)) {
+            $trackingGuia   = $shipment->track_number;
+            $trackingEstado = $this->trackingService->estadoGuia($trackingGuia);
+        }
+
+        $viewData['trackingGuia']   = $trackingGuia;
+        $viewData['trackingEstado'] = $trackingEstado;
+        // ─────────────────────────────────────────────────────────────────────
+
         return view('goloba-rma::seller.rma.view', $viewData);
     }
 
@@ -150,32 +178,125 @@ class RMAController extends Controller
         return response()->json(['success' => true, 'message' => $storedMessage]);
     }
     
+    /**
+     * Acepta una RMA directamente (único cambio de estado disponible para el vendedor).
+     * El rechazo ya no es directo — debe pasar por submitDispute().
+     */
     public function changeStatus(): RedirectResponse
     {
-        $data = request()->only(['rma_id', 'rma_status', 'message']);
+        $data     = request()->only(['rma_id', 'rma_status', 'message']);
         $sellerId = auth()->guard('seller')->user()->id;
+
         $rma = $this->rmaRepository->find($data['rma_id']);
-        if (!$rma) {
-            session()->flash('error', 'RMA no encontrada');
+        if (! $rma) {
+            session()->flash('error', 'RMA no encontrada.');
             return redirect()->route('goloba.seller.rma.index');
         }
-        $belongsToSeller = RMA::find($data['rma_id'])->belongsToSeller($sellerId);
-        if (!$belongsToSeller) {
-            session()->flash('error', 'No tienes permiso para modificar esta RMA');
+
+        if (! RMA::find($data['rma_id'])->belongsToSeller($sellerId)) {
+            session()->flash('error', 'No tienes permiso para modificar esta RMA.');
             return redirect()->route('goloba.seller.rma.index');
         }
+
+        // El vendedor solo puede aceptar desde aquí; el rechazo va por disputa
+        if ($data['rma_status'] !== self::ACCEPT) {
+            session()->flash('error', 'Para rechazar una RMA debes abrir una disputa con justificación.');
+            return redirect()->route('goloba.seller.rma.view', $data['rma_id']);
+        }
+
         $this->rmaRepository->update(['rma_status' => $data['rma_status']], $data['rma_id']);
-        if (!empty($data['message'])) {
-            $this->rmaMessagesRepository->create(['message' => $data['message'], 'rma_id' => $data['rma_id'], 'is_admin' => 0, 'created_at' => Carbon::now(), 'updated_at' => Carbon::now()]);
+
+        if (! empty($data['message'])) {
+            $this->rmaMessagesRepository->create([
+                'message'    => $data['message'],
+                'rma_id'     => $data['rma_id'],
+                'is_admin'   => 0,
+                'is_seller'  => 1,
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ]);
         }
+
         $order = $this->orderRepository->find($rma->order_id);
-        $mailDetails = ['name' => $order->customer_first_name . ' ' . $order->customer_last_name, 'email' => $order->customer_email, 'rma_id' => $data['rma_id'], 'rma_status' => $data['rma_status']];
         try {
-            Mail::queue(new CustomerRMAStatusEmail($mailDetails));
-        } catch (\Exception $e) {
+            Mail::queue(new CustomerRMAStatusEmail([
+                'name'       => $order->customer_first_name . ' ' . $order->customer_last_name,
+                'email'      => $order->customer_email,
+                'rma_id'     => $data['rma_id'],
+                'rma_status' => $data['rma_status'],
+            ]));
+        } catch (\Exception $e) {}
+
+        session()->flash('success', 'RMA aceptada exitosamente.');
+        return redirect()->route('goloba.seller.rma.view', $data['rma_id']);
+    }
+
+    /**
+     * El vendedor abre una disputa en lugar de rechazar directamente.
+     * Cambia el estado a 'Disputed' y persiste observaciones + imágenes.
+     *
+     * POST vendedor/cuenta/rma/dispute
+     */
+    public function submitDispute(): RedirectResponse
+    {
+        $data = request()->validate([
+            'rma_id'       => 'required|integer',
+            'observations' => 'required|string|max:3000',
+            'images'       => 'nullable|array|max:10',
+            'images.*'     => 'image|mimes:jpg,jpeg,png,webp|max:5120',
+        ]);
+
+        $sellerId = auth()->guard('seller')->user()->id;
+
+        $rma = $this->rmaRepository->find($data['rma_id']);
+        if (! $rma) {
+            session()->flash('error', 'RMA no encontrada.');
+            return redirect()->route('goloba.seller.rma.index');
         }
-        $statusText = $data['rma_status'] == self::ACCEPT ? 'aceptada' : 'rechazada';
-        session()->flash('success', "RMA {$statusText} exitosamente");
+
+        if (! RMA::find($data['rma_id'])->belongsToSeller($sellerId)) {
+            session()->flash('error', 'No tienes permiso para modificar esta RMA.');
+            return redirect()->route('goloba.seller.rma.index');
+        }
+
+        if ($rma->rma_status !== self::PENDING) {
+            session()->flash('error', 'Solo se puede disputar una RMA en estado Pendiente.');
+            return redirect()->route('goloba.seller.rma.view', $data['rma_id']);
+        }
+
+        // Crear la disputa
+        $dispute = RmaDispute::create([
+            'rma_id'       => $data['rma_id'],
+            'seller_id'    => $sellerId,
+            'observations' => $data['observations'],
+        ]);
+
+        // Guardar imágenes de evidencia
+        if (request()->hasFile('images')) {
+            foreach (request()->file('images') as $file) {
+                $path = $file->store('rma-disputes/' . $dispute->id, 'public');
+                RmaDisputeImage::create([
+                    'dispute_id'    => $dispute->id,
+                    'path'          => $path,
+                    'original_name' => $file->getClientOriginalName(),
+                ]);
+            }
+        }
+
+        // Cambiar estado del RMA a Disputed
+        $this->rmaRepository->update(['rma_status' => 'Disputed'], $data['rma_id']);
+
+        // Mensaje automático en el chat
+        $this->rmaMessagesRepository->create([
+            'rma_id'     => $data['rma_id'],
+            'message'    => 'El vendedor ha abierto una disputa para esta RMA. El administrador revisará la evidencia y tomará una decisión.',
+            'is_admin'   => 0,
+            'is_seller'  => 1,
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        session()->flash('success', 'Disputa enviada. El administrador revisará tu evidencia.');
         return redirect()->route('goloba.seller.rma.view', $data['rma_id']);
     }
 

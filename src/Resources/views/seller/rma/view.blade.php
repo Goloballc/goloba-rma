@@ -28,15 +28,15 @@
     <!-- Estado y Tipo -->
     <div class="mt-4 flex items-center gap-2.5 max-xl:flex-wrap">
         <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium
-            {{ $rmaData->rma_status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : '' }}
-            {{ $rmaData->rma_status === 'Accept' ? 'bg-green-100 text-green-800' : '' }}
-            {{ $rmaData->rma_status === 'Declined' ? 'bg-red-100 text-red-800' : '' }}
+            {{ $rmaData->rma_status === 'Pending' ? 'bg-yellow-500 text-white' : '' }}
+            {{ $rmaData->rma_status === 'Accept' ? 'bg-green-600 text-white' : '' }}
+            {{ $rmaData->rma_status === 'Declined' ? 'bg-red-600 text-white' : '' }}
         ">
             {{ $rmaData->rma_status }}
         </span>
 
         <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium
-            {{ $rmaData->rma_type === 'retracto' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800' }}
+            {{ $rmaData->rma_type === 'retracto' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-white' }}
         ">
             {{ $rmaData->rma_type === 'retracto' ? 'Derecho de Retracto' : 'RMA Estándar' }}
         </span>
@@ -172,54 +172,206 @@
                 </div>
             </div>
 
-            <!-- Acciones -->
-            @if($rmaData->rma_status === 'Pending')
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h2 class="text-lg font-semibold mb-4">Acciones</h2>
-                    
-                    <form 
-                        method="POST" 
-                        action="{{ route('goloba.seller.rma.change_status') }}"
-                        class="space-y-4"
-                    >
-                        @csrf
-                        <input type="hidden" name="rma_id" value="{{ $rmaData->id }}">
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
-                                Cambiar Estado
-                            </label>
-                            <select 
-                                name="rma_status" 
-                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                required
-                            >
-                                <option value="">Seleccionar...</option>
-                                <option value="Accept">Aceptar</option>
-                                <option value="Declined">Rechazar</option>
-                            </select>
+            <!-- Tracking Servientrega -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold mb-4">Tracking Servientrega</h2>
+
+                @if($trackingGuia)
+                    <p class="text-xs text-gray-500 mb-3">Guía: <span class="font-mono font-medium text-gray-700">{{ $trackingGuia }}</span></p>
+
+                    @if($trackingEstado)
+                        <div class="space-y-3 text-sm">
+                            {{-- Badge de estado --}}
+                            @php
+                                $estadoId = $trackingEstado->idEstadoEnvio;
+                                $badgeClass = match($estadoId) {
+                                    3       => 'bg-green-100 text-green-800',
+                                    4       => 'bg-orange-100 text-orange-800',
+                                    5       => 'bg-red-100 text-red-800',
+                                    2       => 'bg-blue-100 text-blue-800',
+                                    default => 'bg-gray-100 text-gray-700',
+                                };
+                            @endphp
+                            <div>
+                                <p class="text-gray-600 mb-1">Estado actual</p>
+                                <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {{ $badgeClass }}">
+                                    {{ $trackingEstado->estadoEnvio ?: 'Sin información' }}
+                                </span>
+                            </div>
+
+                            {{-- Fecha de entrega --}}
+                            @if($trackingEstado->fechaEntrega)
+                                <div>
+                                    <p class="text-gray-600">Fecha de entrega</p>
+                                    <p class="font-medium text-green-700">
+                                        {{ \Carbon\Carbon::parse($trackingEstado->fechaEntrega)->format('d M Y H:i') }}
+                                    </p>
+                                </div>
+                            @else
+                                <div>
+                                    <p class="text-gray-600">Fecha de entrega</p>
+                                    <p class="text-gray-400 italic">Pendiente</p>
+                                </div>
+                            @endif
                         </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                    @else
+                        {{--
+                            El microservicio no tiene esta guía aún.
+                            Causa más probable: el webhook de Servientrega todavía no ha llegado
+                            (el paquete fue generado pero aún no tiene movimientos logísticos).
+                            No es un error — es el estado inicial normal de una guía recién creada.
+                        --}}
+                        <div class="space-y-3 text-sm">
+                            <div>
+                                <p class="text-gray-600 mb-1">Estado actual</p>
+                                <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600">
+                                    Sin movimientos registrados
+                                </span>
+                            </div>
+                            <p class="text-xs text-gray-400">
+                                Servientrega aún no ha reportado actividad para esta guía.
+                                El estado se actualizará automáticamente cuando el paquete sea movilizado.
+                            </p>
+                        </div>
+                    @endif
+                @else
+                    <p class="text-sm text-gray-500 italic">
+                        No hay guía de envío registrada para esta orden.
+                    </p>
+                @endif
+            </div>
+
+            {{-- ── Acciones (solo cuando está Pendiente) ────────────────────────── --}}
+            @if($rmaData->rma_status === 'Pending')
+
+                {{-- Aceptar --}}
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-lg font-semibold mb-1">Aceptar solicitud</h2>
+                    <p class="text-sm text-gray-500 mb-4">
+                        Acepta la devolución si el paquete llegó en condiciones correctas.
+                    </p>
+                    <form method="POST" action="{{ route('goloba.seller.rma.change_status') }}">
+                        @csrf
+                        <input type="hidden" name="rma_id"     value="{{ $rmaData->id }}">
+                        <input type="hidden" name="rma_status" value="Accept">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
                                 Mensaje (Opcional)
                             </label>
-                            <textarea 
-                                name="message" 
-                                rows="3"
-                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                placeholder="Agregar un comentario..."
+                            <textarea
+                                name="message"
+                                rows="2"
+                                class="w-full rounded-lg border border-gray-300 p-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                placeholder="Ej: Paquete recibido en buen estado."
                             ></textarea>
                         </div>
-                        
-                        <button 
-                            type="submit"
-                            class="w-full primary-button px-5 py-2.5"
-                        >
-                            Actualizar Estado
+                        <button type="submit" class="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-700">
+                            ✓ Aceptar RMA
                         </button>
                     </form>
                 </div>
+
+                {{-- Abrir disputa --}}
+                <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500">
+                    <h2 class="text-lg font-semibold mb-1 text-red-700">Disputar solicitud</h2>
+                    <p class="text-sm text-gray-500 mb-4">
+                        Si el paquete recibido no corresponde con lo declarado por el cliente (contenido incorrecto, producto adulterado, etc.), documenta tu caso aquí. El administrador revisará la evidencia y tomará la decisión final.
+                    </p>
+
+                    <form
+                        method="POST"
+                        action="{{ route('goloba.seller.rma.dispute') }}"
+                        enctype="multipart/form-data"
+                        class="space-y-4"
+                        id="dispute-form"
+                    >
+                        @csrf
+                        <input type="hidden" name="rma_id" value="{{ $rmaData->id }}">
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Observaciones <span class="text-red-500">*</span>
+                            </label>
+                            <textarea
+                                name="observations"
+                                rows="5"
+                                required
+                                maxlength="3000"
+                                class="w-full rounded-lg border border-gray-300 p-2 text-sm shadow-sm focus:border-red-400 focus:ring-red-400"
+                                placeholder="Describe detalladamente qué encontraste al recibir el paquete: qué contenía, en qué condición llegó, por qué no corresponde a lo devuelto por el cliente..."
+                            ></textarea>
+                            <p class="mt-1 text-xs text-gray-400">Máximo 3000 caracteres.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Evidencia fotográfica
+                                <span class="text-gray-400 font-normal">(Opcional — máx. 10 imágenes, 5 MB c/u)</span>
+                            </label>
+                            <input
+                                type="file"
+                                name="images[]"
+                                multiple
+                                accept="image/jpg,image/jpeg,image/png,image/webp"
+                                class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-red-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-red-700 hover:file:bg-red-100"
+                                id="dispute-images"
+                            >
+                            <div id="dispute-image-preview" class="mt-2 flex flex-wrap gap-2"></div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            class="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700"
+                            onclick="return confirm('¿Confirmas que deseas abrir una disputa para esta RMA? El administrador revisará tu evidencia antes de tomar una decisión.')"
+                        >
+                            ⚠ Enviar disputa al administrador
+                        </button>
+                    </form>
+                </div>
+
+            @endif
+
+            {{-- ── Disputa enviada (estado Disputed) ──────────────────────────── --}}
+            @if($rmaData->rma_status === 'Disputed')
+                @php
+                    $dispute = \Goloba\GolobaRMA\Models\RmaDispute::with('images')
+                        ->where('rma_id', $rmaData->id)->latest()->first();
+                @endphp
+                @if($dispute)
+                    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="inline-flex items-center rounded-full bg-yellow-500 px-3 py-1 text-xs font-medium text-white">
+                                En revisión por el administrador
+                            </span>
+                        </div>
+                        <h2 class="text-base font-semibold text-gray-800 mb-2">Tu disputa fue enviada</h2>
+                        <p class="text-sm text-gray-600 mb-3">
+                            Enviada el {{ \Carbon\Carbon::parse($dispute->created_at)->format('d M Y H:i') }}
+                        </p>
+                        <div class="rounded-lg bg-gray-50 border p-4 text-sm text-gray-700 whitespace-pre-line mb-4">{{ $dispute->observations }}</div>
+                        @if($dispute->images->count())
+                            <p class="text-sm font-medium text-gray-600 mb-2">Evidencia adjuntada ({{ $dispute->images->count() }} imagen/es):</p>
+                            <div class="flex flex-wrap gap-2">
+                                @foreach($dispute->images as $img)
+                                    <a href="{{ Storage::url($img->path) }}" target="_blank">
+                                        <img src="{{ Storage::url($img->path) }}" alt="{{ $img->original_name }}"
+                                             class="h-20 w-20 rounded object-cover border hover:opacity-80">
+                                    </a>
+                                @endforeach
+                            </div>
+                        @endif
+                        @if($dispute->admin_resolution)
+                            <div class="mt-4 rounded-lg p-4 {{ $dispute->admin_resolution === 'approved' ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200' }}">
+                                <p class="text-sm font-semibold {{ $dispute->admin_resolution === 'approved' ? 'text-red-700' : 'text-green-700' }}">
+                                    {{ $dispute->admin_resolution === 'approved' ? '✓ Disputa aprobada — RMA rechazada' : '✗ Disputa rechazada — RMA aceptada' }}
+                                </p>
+                                @if($dispute->admin_notes)
+                                    <p class="mt-1 text-sm text-gray-600">{{ $dispute->admin_notes }}</p>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+                @endif
             @endif
 
         </div>
@@ -769,11 +921,11 @@
         } else {
             if ($productDetails['0']?->resolution != 'cancel-items') {
                 $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
-                    return $status !== "Item Canceled" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending";
+                    return $status !== "Item Canceled" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending" && $status !== "Disputed";
                 });
             } else {
                 $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
-                    return $status!== "Received Package" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending";
+                    return $status !== "Received Package" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending" && $status !== "Disputed";
                 });
             }
         }
@@ -851,6 +1003,32 @@
             </div>
         @endif
     @endif
+
+    {{-- Preview de imágenes del formulario de disputa --}}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const input   = document.getElementById('dispute-images');
+            const preview = document.getElementById('dispute-image-preview');
+            if (!input || !preview) return;
+
+            input.addEventListener('change', function () {
+                preview.innerHTML = '';
+                const files = Array.from(this.files).slice(0, 10);
+                files.forEach(file => {
+                    if (!file.type.startsWith('image/')) return;
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.className = 'h-20 w-20 rounded object-cover border';
+                        img.title = file.name;
+                        preview.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            });
+        });
+    </script>
 
     @endpush
 

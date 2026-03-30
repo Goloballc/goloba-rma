@@ -34,12 +34,12 @@
         } else {
             if ($productDetails['0']?->resolution != 'cancel-items') {
                 $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
-                    return $status !== "Item Canceled" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending";
+                    return $status !== "Item Canceled" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending" && $status !== "Disputed";
                 });
     
             } else {
                 $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
-                    return $status!== "Received Package" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending";
+                    return $status!== "Received Package" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending" && $status !== "Disputed";
                 });
             }
         }
@@ -750,6 +750,102 @@
                                     </x-shop::form>
                                 </div>
                             </div>
+                        @endif
+
+                        <!--Disputa del vendedor-->
+                        @if($rmaData['rma_status'] === 'Disputed' || \Goloba\GolobaRMA\Models\RmaDispute::where('rma_id', $rmaData['id'])->exists())
+                            @php
+                                $dispute = \Goloba\GolobaRMA\Models\RmaDispute::with('images')
+                                    ->where('rma_id', $rmaData['id'])->latest()->first();
+                            @endphp
+                            @if($dispute)
+                            <div class="relative mt-3 overflow-x-auto rounded-xl border border-yellow-300 px-8 py-6 dark:border-yellow-700">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div class="flex items-center gap-2">
+                                        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium
+                                            {{ $dispute->isPending() ? 'bg-yellow-500 text-white' : ($dispute->isApproved() ? 'bg-red-600 text-white' : 'bg-green-600 text-white') }}">
+                                            {{ $dispute->isPending() ? 'Disputa pendiente de resolución' : ($dispute->isApproved() ? 'Disputa aprobada — RMA rechazada' : 'Disputa rechazada — RMA aceptada') }}
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-gray-400">
+                                        Enviada el {{ \Carbon\Carbon::parse($dispute->created_at)->format('d M Y H:i') }}
+                                    </p>
+                                </div>
+
+                                <h3 class="text-base font-semibold text-gray-800 dark:text-white mb-1">
+                                    Disputa abierta por el vendedor
+                                </h3>
+
+                                <div class="mb-1 text-xs text-gray-500">Observaciones:</div>
+                                <div class="rounded-lg bg-gray-50 dark:bg-gray-800 border p-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line mb-4">{{ $dispute->observations }}</div>
+
+                                @if($dispute->images->count())
+                                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                                        Evidencia fotográfica ({{ $dispute->images->count() }} imagen/es):
+                                    </p>
+                                    <div class="flex flex-wrap gap-2 mb-4">
+                                        @foreach($dispute->images as $img)
+                                            <a href="{{ Storage::url($img->path) }}" target="_blank" rel="noopener">
+                                                <img
+                                                    src="{{ Storage::url($img->path) }}"
+                                                    alt="{{ $img->original_name }}"
+                                                    class="h-28 w-28 rounded-lg object-cover border hover:opacity-80 transition"
+                                                    title="{{ $img->original_name }}"
+                                                >
+                                            </a>
+                                        @endforeach
+                                    </div>
+                                @endif
+
+                                @if($dispute->isPending())
+                                    <form
+                                        method="POST"
+                                        action="{{ url(config('app.admin_url') . '/rma/disputes/' . $rmaData['id'] . '/resolve') }}"
+                                        class="mt-2 space-y-3 border-t pt-4"
+                                        onsubmit="return confirm('¿Confirmas tu decisión sobre esta disputa? Esta acción cambiará el estado de la RMA.')"
+                                    >
+                                        @csrf
+                                        <p class="text-sm font-semibold text-gray-700 dark:text-white">Resolución del administrador</p>
+                                        <div>
+                                            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Notas (Opcional)</label>
+                                            <textarea
+                                                name="admin_notes"
+                                                rows="3"
+                                                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white p-2 text-sm"
+                                                placeholder="Explica brevemente tu decisión al vendedor y al cliente..."
+                                            ></textarea>
+                                        </div>
+                                        <div class="flex gap-3">
+                                            <button
+                                                type="submit"
+                                                name="resolution"
+                                                value="approved"
+                                                class="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700"
+                                            >
+                                                ✓ Aprobar disputa — Rechazar RMA
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                name="resolution"
+                                                value="rejected"
+                                                class="flex-1 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-700"
+                                            >
+                                                ✗ Rechazar disputa — Continuar RMA
+                                            </button>
+                                        </div>
+                                    </form>
+                                @else
+                                    <div class="mt-2 border-t pt-4">
+                                        <p class="text-xs text-gray-400">
+                                            Resuelta el {{ \Carbon\Carbon::parse($dispute->resolved_at)->format('d M Y H:i') }}
+                                        </p>
+                                        @if($dispute->admin_notes)
+                                            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ $dispute->admin_notes }}</p>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+                            @endif
                         @endif
 
                         <!--Send message-->

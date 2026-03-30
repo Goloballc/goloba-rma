@@ -2,6 +2,7 @@
 
 namespace Goloba\GolobaRMA\Providers;
 
+use Goloba\GolobaRMA\Services\RetractoService;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Route;
 
@@ -16,8 +17,19 @@ class GolobaRMAServiceProvider extends ServiceProvider
     {
         $this->loadMigrationsFrom(__DIR__ . '/../Database/Migrations');
 
-        // Cargar vistas del paquete GolobaRMA
+        // Rutas admin del paquete Goloba RMA
+        $this->loadRoutesFrom(__DIR__ . '/../Routes/admin-routes.php');
+
+        // Namespace de vistas admin (goloba-rma::admin.*)
         $this->loadViewsFrom(__DIR__ . '/../Resources/views', 'goloba-rma');
+
+        // Registrar config de categorías de retracto bajo la clave 'retracto'
+        $this->mergeConfigFrom(__DIR__ . '/../Config/retracto.php', 'retracto');
+
+        // Entrada de festivos en el menú admin de RMA
+        $this->mergeConfigFrom(__DIR__ . '/../Config/admin-menu.php', 'menu.admin');
+
+        // Nota: loadViewsFrom para 'goloba-rma' ya está registrado arriba junto a las migraciones
         
         // IMPORTANTE: Sobrescribir vistas del paquete RMA original
         // El paquete RMA usa el namespace 'rma' que apunta a su carpeta Resources/views
@@ -25,6 +37,13 @@ class GolobaRMAServiceProvider extends ServiceProvider
         view()->prependNamespace('rma', __DIR__ . '/../Resources/views');
 
         $this->loadRoutesFrom(__DIR__ . '/../Routes/seller-routes.php');
+
+        // Rutas del shop: se registran en `booted` para ejecutarse DESPUÉS que
+        // el vendor (bagisto-rma vía Concord). En Laravel la última ruta con el
+        // mismo nombre gana, por lo que registrar al final nos da prioridad.
+        $this->app->booted(function () {
+            $this->loadRoutesFrom(__DIR__ . '/../Routes/shop-routes.php');
+        });
 
         // Publicar vistas para personalización
         $this->publishes([
@@ -66,6 +85,16 @@ class GolobaRMAServiceProvider extends ServiceProvider
         $this->app->bind(
             \Webkul\RMA\Repositories\RMAMessagesRepository::class,
             \Goloba\GolobaRMA\Repositories\RMAMessagesRepository::class
+        );
+
+        // Registrar RetractoService como singleton
+        $this->app->singleton(RetractoService::class);
+
+        // Sobreescribir el DataGrid de órdenes para RMA del shop:
+        // solo muestra órdenes completadas (entregadas).
+        $this->app->bind(
+            \Webkul\RMA\DataGrids\Shop\OrderRMADataGrid::class,
+            \Goloba\GolobaRMA\DataGrids\Shop\OrderRMADataGrid::class
         );
     }
 }

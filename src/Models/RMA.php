@@ -18,14 +18,15 @@ class RMA extends BaseRMA
         'order_id',
         'status',
         'package_condition',
-        'rma_type', // Nuevo campo
+        'rma_type',
+        'retracto_expires_at',
+        'retracto_seal_intact',
     ];
 
-    /**
-     * Castear atributos
-     */
     protected $casts = [
-        'status' => 'boolean',
+        'status'               => 'boolean',
+        'retracto_seal_intact' => 'boolean',
+        'retracto_expires_at'  => 'datetime',
     ];
 
     /**

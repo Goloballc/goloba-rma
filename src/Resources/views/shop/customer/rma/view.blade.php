@@ -83,10 +83,21 @@
     @endphp
 
     <div class="mx-4 flex-auto max-md:mx-6 max-sm:mx-4">
-        <div class="mb-8 flex items-center max-md:mb-5">
+        <div class="mb-8 flex items-center gap-3 max-md:mb-5">
             <h2 class="text-2xl font-medium max-md:text-xl max-sm:text-base ltr:ml-2.5 md:ltr:ml-0 rtl:mr-2.5 md:rtl:mr-0">
                 @lang('rma::app.admin.sales.rma.all-rma.index.datagrid.id') {{ '#'.$rmaData['id'] }}
             </h2>
+
+            {{-- Badge de tipo de RMA --}}
+            @if ($rmaData['rma_type'] === 'retracto')
+                <span class="inline-flex items-center rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white">
+                    Derecho de Retracto
+                </span>
+            @else
+                <span class="inline-flex items-center rounded-full bg-gray-600 px-3 py-1 text-xs font-medium text-white">
+                    RMA Estándar
+                </span>
+            @endif
         </div>
 
         <!-- Item(s) Requested for RMA -->
@@ -603,6 +614,72 @@
                     @endif
                 @endif
             @endif
+
+            {{-- ── Sección de Disputa del Vendedor ────────────────────────────── --}}
+            @if($rmaData['rma_status'] === 'Disputed')
+                @php
+                    $dispute = \Goloba\GolobaRMA\Models\RmaDispute::with('images')
+                        ->where('rma_id', $rmaData['id'])->latest()->first();
+                @endphp
+                @if($dispute)
+                    <div class="relative mt-4 overflow-x-auto rounded-xl border border-yellow-300 bg-yellow-50 px-8 py-6">
+                        <div class="flex items-center gap-2 mb-3">
+                            <svg class="h-5 w-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                            </svg>
+                            <h3 class="text-base font-semibold text-yellow-800">
+                                El vendedor ha abierto una disputa
+                            </h3>
+                        </div>
+                        <p class="text-sm text-yellow-700 mb-4">
+                            Tu solicitud está siendo revisada por el administrador de Goloba. Recibirás una notificación cuando se tome una decisión.
+                        </p>
+
+                        <div class="mb-3">
+                            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Observaciones del vendedor</p>
+                            <div class="rounded-lg bg-white border border-yellow-200 p-4 text-sm text-gray-700 whitespace-pre-line">{{ $dispute->observations }}</div>
+                        </div>
+
+                        @if($dispute->images->count())
+                            <div>
+                                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                                    Evidencia adjuntada ({{ $dispute->images->count() }} imagen/es)
+                                </p>
+                                <div class="flex flex-wrap gap-2">
+                                    @foreach($dispute->images as $img)
+                                        <a href="{{ Storage::url($img->path) }}" target="_blank" rel="noopener">
+                                            <img
+                                                src="{{ Storage::url($img->path) }}"
+                                                alt="{{ $img->original_name }}"
+                                                class="h-24 w-24 rounded-lg object-cover border border-yellow-200 hover:opacity-80 transition"
+                                            >
+                                        </a>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+
+                        @if($dispute->admin_resolution)
+                            <div class="mt-4 rounded-lg p-4 {{ $dispute->admin_resolution === 'approved' ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200' }}">
+                                @if($dispute->admin_resolution === 'approved')
+                                    <p class="text-sm font-semibold text-red-700">
+                                        La disputa fue aprobada — tu solicitud no pudo procesarse.
+                                    </p>
+                                @else
+                                    <p class="text-sm font-semibold text-green-700">
+                                        El administrador revisó la disputa y tu solicitud continuará siendo procesada.
+                                    </p>
+                                @endif
+                                @if($dispute->admin_notes)
+                                    <p class="mt-1 text-sm text-gray-600">{{ $dispute->admin_notes }}</p>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+                @endif
+            @endif
+            {{-- ── Fin sección disputa ─────────────────────────────────────────── --}}
 
             <!-- Enter message -->
             <div class="mt-8">
