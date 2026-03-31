@@ -28,6 +28,7 @@
             $rmaData['rma_status'] == 'Item Canceled'
             || $rmaData['rma_status'] == 'Declined'
             || $rmaData['rma_status'] == 'Canceled'
+            || $rmaData['rma_status'] == 'Disputed'
             || $rmaData['order']['status'] == 'canceled' 
             || $rmaData['order']['status'] == 'closed'
         ) {

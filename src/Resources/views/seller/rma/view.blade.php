@@ -265,7 +265,7 @@
                                 placeholder="Ej: Paquete recibido en buen estado."
                             ></textarea>
                         </div>
-                        <button type="submit" class="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-700">
+                        <button type="submit" class="w-full rounded-lg bg-magentaGoloba px-4 py-2.5 text-sm font-medium text-white hover:opacity-90">
                             ✓ Aceptar RMA
                         </button>
                     </form>
@@ -320,9 +320,9 @@
                         </div>
 
                         <button
-                            type="submit"
+                            type="button"
                             class="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700"
-                            onclick="return confirm('¿Confirmas que deseas abrir una disputa para esta RMA? El administrador revisará tu evidencia antes de tomar una decisión.')"
+                            onclick="confirmarDisputa()"
                         >
                             ⚠ Enviar disputa al administrador
                         </button>
@@ -906,6 +906,15 @@
                     }
                 }
             });
+
+            // Expone confirmar disputa al scope global usando el emitter de Bagisto
+            window.confirmarDisputa = function () {
+                emitter.emit('open-confirm-modal', {
+                    agree: () => {
+                        document.getElementById('dispute-form').submit();
+                    }
+                });
+            };
         </script>
     </div>
 
