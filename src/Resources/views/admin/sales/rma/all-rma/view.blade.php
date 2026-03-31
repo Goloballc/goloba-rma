@@ -167,16 +167,7 @@
                 ? 'Aprobar disputa (la RMA quedará como Rechazada)'
                 : 'Rechazar disputa (la RMA continuará como Aceptada)';
 
-            window.addEventListener('dispute-confirmed-' + resolution, function handler() {
-                document.getElementById('dispute-resolution-input').value = resolution;
-                document.getElementById('dispute-notes-hidden').value =
-                    document.getElementById('dispute-admin-notes').value;
-                document.getElementById('dispute-hidden-form').submit();
-                window.removeEventListener('dispute-confirmed-' + resolution, handler);
-            }, { once: true });
-
             emitter.emit('open-confirm-modal', {
-                message: '¿Confirmas: ' + label + '?',
                 agree: () => {
                     document.getElementById('dispute-resolution-input').value = resolution;
                     document.getElementById('dispute-notes-hidden').value =
