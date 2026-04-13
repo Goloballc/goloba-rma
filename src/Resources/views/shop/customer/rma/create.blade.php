@@ -387,6 +387,14 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                                     </div>
                                 </div>
                             </div>
+
+                            {{--
+                                Cambio 1 (imágenes) y Cambio 2 (T&C) NO se agregan aquí.
+                                El componente v-order-items-list ya renderiza ambos campos
+                                una vez que el usuario selecciona producto + cantidad + resolución.
+                                Agregarlos aquí causaría duplicados.
+                                rmaRetractoSubmit() los localiza con querySelector sobre el form.
+                            --}}
                         </x-slot>
 
                         <x-slot:footer>
@@ -989,9 +997,9 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                         <x-shop::form.control-group.error control-name="information" class="flex"/>
                     </x-shop::form.control-group>
 
-                    <!-- Images -->
+                    <!-- Images (obligatorio - Cambio 1) -->
                     <x-shop::form.control-group class="mt-4">
-                        <x-shop::form.control-group.label class="text-sm flex">
+                        <x-shop::form.control-group.label class="required text-sm flex">
                             @lang('admin::app.catalog.products.edit.images.title')
                         </x-shop::form.control-group.label>
                         
@@ -1005,6 +1013,13 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                         />
 
                         <x-shop::form.control-group.error control-name="images[]" class="flex"/>
+
+                        <p
+                            v-if="imageError"
+                            class="mt-1 text-sm text-red-600"
+                        >
+                            @{{ imageError }}
+                        </p>
                     </x-shop::form.control-group>
 
                     @include('rma::shop.customer.rma.terms')
@@ -1026,6 +1041,7 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                         refreshComponent: 1,
                         rmaFormButton: false,
                         rmaFormSubmit: true,
+                        imageError: null,
                         // Datos del Derecho de Retracto para el modal alternativo
                         retracto: {
                             remainingDays:  0,
@@ -1083,6 +1099,14 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                     },
 
                     rmaSubmit(params, { resetForm, setErrors  }) {
+                        // Cambio 1: validar imagen obligatoria en modal estándar
+                        const imagesInput = this.$refs.rmaSubmit.querySelector('input[name="images[]"]');
+                        if (!imagesInput || !imagesInput.files || imagesInput.files.length === 0) {
+                            this.imageError = 'Debes adjuntar al menos una imagen de los productos.';
+                            return;
+                        }
+                        this.imageError = null;
+
                         let formData = new FormData(this.$refs.rmaSubmit);
 
                         this.rmaFormSubmit = false; 
@@ -1109,6 +1133,21 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                     rmaRetractoSubmit() {
                         if (this.retracto.hasConditional && !this.retracto.sealIntact) {
                             this.$emitter.emit('add-flash', { type: 'error', message: 'Debes declarar que el sello de seguridad está intacto para continuar.' });
+                            return;
+                        }
+
+                        // Cambio 1: validar imagen obligatoria — el input viene de v-order-items-list
+                        const imagesInput = this.$refs.rmaRetractoSubmit.querySelector('input[type="file"][name="images[]"]');
+                        if (!imagesInput || !imagesInput.files || imagesInput.files.length === 0) {
+                            this.$emitter.emit('add-flash', { type: 'error', message: 'Debes adjuntar al menos una imagen de los productos.' });
+                            return;
+                        }
+                        this.retractoImageError = null;
+
+                        // Cambio 2: validar términos y condiciones — el checkbox viene de v-order-items-list
+                        const agreementInput = this.$refs.rmaRetractoSubmit.querySelector('input[name="agreement"]');
+                        if (!agreementInput || !agreementInput.checked) {
+                            this.$emitter.emit('add-flash', { type: 'error', message: 'Debes aceptar los Términos y Condiciones para continuar.' });
                             return;
                         }
 

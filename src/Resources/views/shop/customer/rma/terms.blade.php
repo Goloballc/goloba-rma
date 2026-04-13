@@ -1,3 +1,6 @@
+{{-- NOTA: Este componente es incluido en ambos modales (estándar y retracto).
+     @pushOnce garantiza que el script de Vue solo se registra una vez.
+     El componente v-customer-rma-return-policy se reutiliza en ambos contextos. --}}
 {!! view_render_event('marketplace.seller.account.sign_up.form.agreement.before') !!}
 
 <v-customer-rma-return-policy></v-customer-rma-return-policy>

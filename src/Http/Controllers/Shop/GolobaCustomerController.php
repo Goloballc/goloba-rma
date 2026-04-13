@@ -148,6 +148,16 @@ class GolobaCustomerController extends CustomerController
             return $error;
         }
 
+        // Cambio 1: imagen obligatoria
+        if (! request()->hasFile('images') || empty(array_filter(request()->file('images') ?? []))) {
+            return new JsonResponse(['messages' => 'Debes adjuntar al menos una imagen de los productos para continuar.'], 422);
+        }
+
+        // Cambio 2: aceptación de términos y condiciones obligatoria
+        if (! request()->input('agreement')) {
+            return new JsonResponse(['messages' => 'Debes aceptar los Términos y Condiciones para continuar.'], 422);
+        }
+
         // Calcular datos de retracto ANTES de llamar al padre
         $retractoData = $this->buildRetractoData($orderId);
 
@@ -173,6 +183,16 @@ class GolobaCustomerController extends CustomerController
             return $error;
         }
 
+        // Cambio 1: imagen obligatoria
+        if (! request()->hasFile('images') || empty(array_filter(request()->file('images') ?? []))) {
+            return new JsonResponse(['messages' => 'Debes adjuntar al menos una imagen de los productos para continuar.'], 422);
+        }
+
+        // Cambio 2: aceptación de términos y condiciones obligatoria
+        if (! request()->input('agreement')) {
+            return new JsonResponse(['messages' => 'Debes aceptar los Términos y Condiciones para continuar.'], 422);
+        }
+
         $retractoData = $this->buildRetractoData($orderId);
 
         $response = parent::storeGuest();
@@ -182,6 +202,83 @@ class GolobaCustomerController extends CustomerController
         }
 
         return $response;
+    }
+
+    // =========================================================================
+    // VISTA DE DETALLE
+    // =========================================================================
+
+    /**
+     * {@inheritdoc}
+     *
+     * Extiende la vista de detalle del vendor para pasar $dispute a la vista,
+     * evitando queries en el Blade template.
+     */
+    public function view(int $id): \Illuminate\View\View|\Illuminate\Http\RedirectResponse
+    {
+        $customer = auth()->guard('customer')->user();
+        $isGuest  = empty($customer) ? 1 : 0;
+
+        $rmaData = $this->rmaRepository->with(['orderItem', 'order'])->findOneWhere(['id' => $id]);
+
+        if (! $rmaData) {
+            return redirect()->route('shop.customer.session.index');
+        }
+
+        $order = $this->orderRepository->where([
+            'id'       => $rmaData['order_id'],
+            'is_guest' => $isGuest,
+            $customer ? 'customer_id' : 'customer_email' => $customer?->id ?? session()->get('guestEmail'),
+        ])->first();
+
+        if (empty($order)) {
+            return redirect()->route(empty($customer) ? 'shop.customer.session.index' : 'rma.customers.all-rma');
+        }
+
+        $rmaImages            = $this->rmaImagesRepository->findWhere(['rma_id' => $id]);
+        $rmaAdditionalValues  = $this->rmaAdditionalFieldRepository->findWhere(['rma_id' => $id]);
+        $rmaAdditionalFieldValues = [];
+
+        foreach ($rmaAdditionalValues as $value) {
+            $rmaCustomField = $this->rmaCustomFieldRepository->findOneWhere(['code' => $value->field_name]);
+            if ($rmaCustomField) {
+                $rmaAdditionalFieldValues[$value->field_value] = $rmaCustomField['label'];
+            }
+        }
+
+        $reasons        = $this->rmaItemsRepository->with('getReasons')->findWhere(['rma_id' => $id]);
+        $productDetails = $this->rmaItemsRepository->findWhere(['rma_id' => $id]);
+        $rmaItems       = $this->rmaItemsRepository->findWhere(['rma_id' => $rmaData['id']]);
+
+        $skus = [];
+        foreach ($order->items as $item) {
+            if ($item['type'] === 'configurable') {
+                $skus[] = $item['child'];
+            }
+            $skus[] = $item['sku'];
+        }
+
+        $customerFirstName = $order->customer_first_name;
+        $customerLastName  = $order->customer_last_name;
+
+        // Disputa — se pasa null si no existe, la vista solo hace @if ($dispute)
+        $dispute = \Goloba\GolobaRMA\Models\RmaDispute::with('images')
+            ->where('rma_id', $id)
+            ->first();
+
+        return view(empty($customer) ? 'rma::shop.guest.view' : 'rma::shop.customer.rma.view', compact(
+            'skus',
+            'rmaData',
+            'reasons',
+            'isGuest',
+            'customer',
+            'rmaImages',
+            'productDetails',
+            'customerLastName',
+            'customerFirstName',
+            'rmaAdditionalFieldValues',
+            'dispute',
+        ));
     }
 
     // =========================================================================

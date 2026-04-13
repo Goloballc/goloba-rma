@@ -117,7 +117,6 @@
                                     alt="Imagen RMA"
                                     class="h-full w-full object-cover transition group-hover:scale-105"
                                 >
-                                <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition"></div>
                             </a>
                         @endforeach
                     </div>
@@ -284,6 +283,7 @@
                         enctype="multipart/form-data"
                         class="space-y-4"
                         id="dispute-form"
+                        ref="disputeForm"
                     >
                         @csrf
                         <input type="hidden" name="rma_id" value="{{ $rmaData->id }}">
@@ -322,7 +322,7 @@
                         <button
                             type="button"
                             class="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700"
-                            onclick="confirmarDisputa()"
+                            @click="$emitter.emit('open-confirm-modal', { agree: () => { $refs.disputeForm.submit() } })"
                         >
                             ⚠ Enviar disputa al administrador
                         </button>
@@ -420,6 +420,134 @@
 
     <!-- Chat / Mensajes con Vue.js -->
     <div class="mt-6 bg-white rounded-lg shadow">
+        <script type="text/x-template" id="rma-chat-template">
+            <div>
+                <div class="border-b p-6">
+                    <h2 class="text-lg font-semibold">Conversación con el Cliente</h2>
+                    <p class="text-sm text-gray-600 mt-1">Comunícate directamente con el cliente sobre esta RMA</p>
+                </div>
+
+                <!-- Lista de Mensajes -->
+                <div 
+                    class="p-6 space-y-4 max-h-96 overflow-y-auto"
+                    ref="messagesContainer"
+                    :class="! messages.length ? 'flex justify-center items-center' : ''"
+                >
+                    <div v-if="messages.length">
+                        <div
+                            v-for="message in messages"
+                            :key="message.id"
+                            class="border rounded-lg p-4"
+                            :class="getMessageClasses(message)"
+                        >
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-gray-900">@{{ getSenderLabel(message) }}</span>
+                                <span class="text-xs text-gray-500">@{{ formatDate(message.created_at) }}</span>
+                            </div>
+                            <p class="text-gray-700 whitespace-pre-line">@{{ message.message }}</p>
+                            
+                            <div v-if="message.attachment" class="mt-2">
+                                <a 
+                                    :href="'{{ config('app.url') }}/storage/' + message.attachment_path" 
+                                    target="_blank" 
+                                    class="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
+                                >
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                                    </svg>
+                                    @{{ message.attachment }}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-else>
+                        <div class="flex flex-col items-center justify-center py-8 text-gray-500">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                            </svg>
+                            <p class="mt-2">No hay mensajes aún</p>
+                            <p class="text-sm">Sé el primero en enviar un mensaje</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulario de Envío -->
+                <div class="border-t p-6">
+                    <x-shop::form
+                        v-slot="{ meta, errors, handleSubmit }"
+                        as="div"
+                    >
+                        <form 
+                            @submit="handleSubmit($event, chatSubmit)"
+                            ref="chatForm"
+                            enctype="multipart/form-data"
+                            class="space-y-4"
+                        >
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Tu Mensaje
+                                </label>
+                                <x-shop::form.control-group.control
+                                    type="textarea"
+                                    name="message"
+                                    v-model="messageText"
+                                    rules="required"
+                                    :label="'Mensaje'"
+                                    :placeholder="'Escribe tu mensaje aquí...'"
+                                    rows="3"
+                                />
+                                <x-shop::form.control-group.error control-name="message" />
+                            </div>
+
+                            <input type="hidden" name="rma_id" :value="rmaId" />
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Adjuntar Archivo (Opcional)
+                                </label>
+                                <input 
+                                    type="file" 
+                                    name="file"
+                                    ref="fileInput"
+                                    class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                >
+                                <p class="mt-1 text-xs text-gray-500">Máximo 10MB</p>
+                            </div>
+
+                            <div class="flex items-center gap-4">
+                                <button 
+                                    type="submit"
+                                    class="primary-button px-6 py-2.5"
+                                    :disabled="isSending"
+                                >
+                                    <span v-if="!isSending">Enviar Mensaje</span>
+                                    <span v-else class="flex items-center gap-2">
+                                        <svg class="animate-spin h-5 w-5 text-white inline" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        Enviando...
+                                    </span>
+                                </button>
+                                <button 
+                                    type="button"
+                                    @click="loadMessages"
+                                    class="secondary-button px-6 py-2.5"
+                                >
+                                    Actualizar Chat
+                                </button>
+                            </div>
+                        </form>
+                    </x-shop::form>
+                </div>
+            </div>
+        </script>
+
+        <rma-chat></rma-chat>
+    </div>
+
+    @push('scripts')
         <script type="text/x-template" id="rma-chat-template">
             <div>
                 <div class="border-b p-6">
@@ -660,261 +788,6 @@
                     }
                 }
             });
-        </script>
-
-        <rma-chat></rma-chat>
-    </div>
-
-    @push('scripts')
-        <script type="text/x-template" id="rma-chat-template">
-            <div>
-                <div class="border-b p-6">
-                    <h2 class="text-lg font-semibold">Conversación con el Cliente</h2>
-                    <p class="text-sm text-gray-600 mt-1">Comunícate directamente con el cliente sobre esta RMA</p>
-                </div>
-
-                <!-- Lista de Mensajes -->
-                <div 
-                    class="p-6 space-y-4 max-h-96 overflow-y-auto"
-                    ref="messagesContainer"
-                    :class="! messages.length ? 'flex justify-center items-center' : ''"
-                >
-                    <div v-if="messages.length">
-                        <div
-                            v-for="message in messages"
-                            :key="message.id"
-                            class="border rounded-lg p-4"
-                            :class="getMessageClasses(message)"
-                        >
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-sm font-medium text-gray-900">@{{ getSenderLabel(message) }}</span>
-                                <span class="text-xs text-gray-500">@{{ formatDate(message.created_at) }}</span>
-                            </div>
-                            <p class="text-gray-700 whitespace-pre-line">@{{ message.message }}</p>
-                            
-                            <div v-if="message.attachment" class="mt-2">
-                                <a 
-                                    :href="'{{ config('app.url') }}/storage/' + message.attachment_path" 
-                                    target="_blank" 
-                                    class="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
-                                >
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                                    </svg>
-                                    @{{ message.attachment }}
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div v-else>
-                        <div class="flex flex-col items-center justify-center py-8 text-gray-500">
-                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                            </svg>
-                            <p class="mt-2">No hay mensajes aún</p>
-                            <p class="text-sm">Sé el primero en enviar un mensaje</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Formulario de Envío -->
-                <div class="border-t p-6">
-                    <x-shop::form
-                        v-slot="{ meta, errors, handleSubmit }"
-                        as="div"
-                    >
-                        <form 
-                            @submit="handleSubmit($event, chatSubmit)"
-                            ref="chatForm"
-                            enctype="multipart/form-data"
-                            class="space-y-4"
-                        >
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Tu Mensaje
-                                </label>
-                                <x-shop::form.control-group.control
-                                    type="textarea"
-                                    name="message"
-                                    v-model="messageText"
-                                    rules="required"
-                                    :label="'Mensaje'"
-                                    :placeholder="'Escribe tu mensaje aquí...'"
-                                    rows="3"
-                                />
-                                <x-shop::form.control-group.error control-name="message" />
-                            </div>
-
-                            <input type="hidden" name="rma_id" :value="rmaId" />
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Adjuntar Archivo (Opcional)
-                                </label>
-                                <input 
-                                    type="file" 
-                                    name="file"
-                                    ref="fileInput"
-                                    class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                                >
-                                <p class="mt-1 text-xs text-gray-500">Máximo 10MB</p>
-                            </div>
-
-                            <div class="flex items-center gap-4">
-                                <button 
-                                    type="submit"
-                                    class="primary-button px-6 py-2.5"
-                                    :disabled="isSending"
-                                >
-                                    <span v-if="!isSending">Enviar Mensaje</span>
-                                    <span v-else class="flex items-center gap-2">
-                                        <svg class="animate-spin h-5 w-5 text-white inline" fill="none" viewBox="0 0 24 24">
-                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        Enviando...
-                                    </span>
-                                </button>
-                                <button 
-                                    type="button"
-                                    @click="loadMessages"
-                                    class="secondary-button px-6 py-2.5"
-                                >
-                                    Actualizar Chat
-                                </button>
-                            </div>
-                        </form>
-                    </x-shop::form>
-                </div>
-            </div>
-        </script>
-
-        <script type="text/javascript">
-            app.component('rma-chat', {
-                template: '#rma-chat-template',
-
-                data() {
-                    return {
-                        messages: [],
-                        messageText: '',
-                        rmaId: {{ $rmaData->id }},
-                        isSending: false,
-                    };
-                },
-
-                mounted() {
-                    console.log('RMA Chat component mounted', this.rmaId);
-                    this.loadMessages();
-                    
-                    // Auto-actualizar cada 30 segundos
-                    setInterval(() => {
-                        this.loadMessages();
-                    }, 30000);
-                },
-
-                methods: {
-                    loadMessages() {
-                        console.log('Loading messages...');
-                        this.$axios.get('{{ route('goloba.seller.rma.messages') }}', {
-                            params: {
-                                rma_id: this.rmaId
-                            }
-                        })
-                        .then(response => {
-                            console.log('Messages loaded:', response.data);
-                            this.messages = response.data.messages;
-                            this.$nextTick(() => {
-                                this.scrollToBottom();
-                            });
-                        })
-                        .catch(error => {
-                            console.error('Error loading messages:', error);
-                            this.$emitter.emit('add-flash', { 
-                                type: 'error', 
-                                message: 'Error al cargar los mensajes' 
-                            });
-                        });
-                    },
-
-                    chatSubmit(params, { resetForm, setErrors }) {
-                        this.isSending = true;
-                        
-                        let formData = new FormData(this.$refs.chatForm);
-                        
-                        this.$axios.post('{{ route('goloba.seller.rma.send_message') }}', formData)
-                            .then(response => {
-                                if (response.data.success) {
-                                    this.messageText = '';
-                                    if (this.$refs.fileInput) {
-                                        this.$refs.fileInput.value = '';
-                                    }
-                                    
-                                    this.$emitter.emit('add-flash', { 
-                                        type: 'success', 
-                                        message: 'Mensaje enviado correctamente' 
-                                    });
-                                    
-                                    this.loadMessages();
-                                    resetForm();
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Error sending message:', error);
-                                this.$emitter.emit('add-flash', { 
-                                    type: 'error', 
-                                    message: 'Error al enviar el mensaje' 
-                                });
-                            })
-                            .finally(() => {
-                                this.isSending = false;
-                            });
-                    },
-
-                    getSenderLabel(message) {
-                        if (message.is_admin == 1) return 'Admin';
-                        if (message.is_seller == 1) return 'Tú (Vendedor)';
-                        return 'Cliente';
-                    },
-
-                    getMessageClasses(message) {
-                        if (message.is_admin == 1) {
-                            return 'bg-purple-50 border-purple-200';
-                        }
-                        if (message.is_seller == 1) {
-                            return 'bg-blue-50 border-blue-200';
-                        }
-                        return 'bg-gray-50 border-gray-200';
-                    },
-
-                    formatDate(dateString) {
-                        const date = new Date(dateString);
-                        return date.toLocaleDateString('es-CO', { 
-                            day: '2-digit', 
-                            month: 'short', 
-                            year: 'numeric'
-                        }) + ' ' + date.toLocaleTimeString('es-CO', {
-                            hour: '2-digit', 
-                            minute: '2-digit'
-                        });
-                    },
-
-                    scrollToBottom() {
-                        if (this.$refs.messagesContainer) {
-                            this.$refs.messagesContainer.scrollTop = this.$refs.messagesContainer.scrollHeight;
-                        }
-                    }
-                }
-            });
-
-            // Expone confirmar disputa al scope global usando el emitter de Bagisto
-            window.confirmarDisputa = function () {
-                emitter.emit('open-confirm-modal', {
-                    agree: () => {
-                        document.getElementById('dispute-form').submit();
-                    }
-                });
-            };
         </script>
     </div>
 
