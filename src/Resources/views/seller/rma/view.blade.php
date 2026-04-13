@@ -86,7 +86,7 @@
                                 
                                 <div class="mt-2 flex gap-4">
                                     <span class="text-xs text-gray-500">
-                                        Resolución: <span class="font-medium">{{ ucfirst($item['resolution']) }}</span>
+                                        Resolución: <span class="font-medium">{{ ['return' => 'Devolución', 'exchange' => 'Reemplazo', 'cancel-items' => 'Cancelación'][$item['resolution']] ?? ucfirst($item['resolution']) }}</span>
                                     </span>
                                     @if($item['reason'])
                                         <span class="text-xs text-gray-500">

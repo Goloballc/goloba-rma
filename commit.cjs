@@ -7,5 +7,5 @@ const run = (cmd) => {
 };
 
 run('git add -A');
-run('git commit -m "feat(rma): phase 2 changes 1+2 — mandatory image and T&C checkbox on both modals"');
+run('git commit -m "feat(rma): change 3 — retracto forces return resolution, translate resolution labels to Spanish"');
 console.log('Done.');

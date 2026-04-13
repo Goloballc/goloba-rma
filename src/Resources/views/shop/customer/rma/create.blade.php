@@ -340,6 +340,14 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                         </x-slot>
 
                         <x-slot:content class="bg-white p-4 max-sm:p-3">
+                            {{--
+                                El retracto siempre aplica sobre pedidos entregados.
+                                validarEntregaConfirmada() ya lo garantiza en el backend,
+                                pero el vendor requiere este campo como 'required'.
+                                Valor 1 = "Delivered" (mismo que el selector estándar).
+                            --}}
+                            <input type="hidden" name="order_status" value="1" />
+
                             {{-- Banner informativo --}}
                             <div class="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
                                 <div class="flex items-start gap-3">
@@ -359,7 +367,7 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
 
                             {{-- Productos de la orden --}}
                             <div class="overflow-auto" style="min-height: 300px; max-height: 350px;">
-                                <v-order-items-list :key="refreshComponent" :order-id="isSelect"></v-order-items-list>
+                                <v-order-items-list :key="refreshComponent" :order-id="isSelect" :retracto-mode="true"></v-order-items-list>
                             </div>
 
                             {{-- Checkbox de sello para productos condicionados --}}
@@ -613,6 +621,20 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                         </p>
 
                         <div class="flex gap-3" v-if="! notAllowed">
+
+                            {{-- Modo retracto: resolución fija = devolución, sin selector --}}
+                            <template v-if="retractoMode">
+                                <p class="w-full" v-if="isChecked[getProductId(product)] && product.currentQuantity > '0'">
+                                    <div class="rounded border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+                                        Tipo de solicitud: <strong>Devolución</strong>
+                                        <span class="block text-xs text-blue-500 mt-0.5">El derecho de retracto aplica únicamente para devoluciones (Ley 1480/2011).</span>
+                                    </div>
+                                </p>
+                            </template>
+
+                            {{-- Modo estándar: selectores normales de resolución --}}
+                            <template v-else>
+
                             <!-- Resolution Type for rules product -->
                             <p class="w-full" v-if="product.rma_exchange_period || product.rma_return_period">
                                 <div v-if="isChecked[getProductId(product)] && product.currentQuantity > '0'">
@@ -706,6 +728,9 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                                     </x-shop::form.control-group>
                                 </div>
                             </p>
+
+                            </template>
+                            {{-- fin v-else modo estándar --}}
 
                             <!-- Reasons -->
                             <p class="w-full">
@@ -1153,6 +1178,15 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
 
                         let formData = new FormData(this.$refs.rmaRetractoSubmit);
                         formData.append('rma_type', 'retracto');
+
+                        // resolution_type no viene del DOM en modo retracto (no hay selector).
+                        // Lo inferimos de los isChecked[pid] presentes en el FormData.
+                        for (const key of [...formData.keys()]) {
+                            const match = key.match(/^isChecked\[(\d+)\]$/);
+                            if (match) {
+                                formData.append('resolution_type[' + match[1] + ']', 'return');
+                            }
+                        }
                         if (this.retracto.hasConditional) {
                             formData.append('retracto_seal_intact', this.retracto.sealIntact ? '1' : '0');
                         }
@@ -1177,7 +1211,7 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
             app.component('v-order-items-list', {
                 template: '#v-order-items-list-template',
 
-                props: ['orderId'],
+                props: ['orderId', 'retractoMode'],
 
                 data() {
                     return {
@@ -1237,6 +1271,19 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                                     this.isLoading = false;
                                     
                                     this.products = response.data;
+
+                                    // En modo retracto pre-seteamos resolution_type = 'return'
+                                    // para cada producto y cargamos los motivos automáticamente,
+                                    // ya que no hay selector que dispare getResolutionReason().
+                                    if (this.retractoMode && Array.isArray(response.data)) {
+                                        response.data.forEach(product => {
+                                            const pid = this.getProductId(product);
+                                            this.$set
+                                                ? this.$set(this.resolutionType, pid, 'return')
+                                                : (this.resolutionType[pid] = 'return');
+                                            this.getResolutionReason(pid);
+                                        });
+                                    }
                                 }).catch(error => {
                                     console.log(error);
                                 });
