@@ -4,6 +4,7 @@ namespace Goloba\GolobaRMA\Providers;
 
 use Goloba\GolobaRMA\Services\RetractoService;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 
 class GolobaRMAServiceProvider extends ServiceProvider
@@ -43,6 +44,17 @@ class GolobaRMAServiceProvider extends ServiceProvider
         // mismo nombre gana, por lo que registrar al final nos da prioridad.
         $this->app->booted(function () {
             $this->loadRoutesFrom(__DIR__ . '/../Routes/shop-routes.php');
+
+            // Cambio 6: al crear un producto (admin o seller), habilitar RMA con
+            // la regla Standard (id=1) por defecto, sin requerir acción manual.
+            Event::listen('catalog.product.create.after', function ($product) {
+                app(\Webkul\Product\Repositories\ProductRepository::class)
+                    ->where('id', $product->id)
+                    ->update([
+                        'allow_rma' => 'yes',
+                        'rma_rules' => '1',
+                    ]);
+            });
         });
 
         // Publicar vistas para personalización

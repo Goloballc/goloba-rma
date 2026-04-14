@@ -795,19 +795,30 @@
     @php
         $statusArr = [];
         $rmaActiveStatus = $rmaActiveStatus->toarray();
-        
+        $rmaResolution   = $productDetails['0']?->resolution ?? '';
+
         if ($rmaData['rma_status'] == 'Pending') {
             $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
                 return in_array($status, ["Accept", "Declined"]);
             });
         } else {
-            if ($productDetails['0']?->resolution != 'cancel-items') {
-                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
-                    return $status !== "Item Canceled" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending" && $status !== "Disputed";
+            $alwaysExclude = ["Accept", "Declined", "Pending", "Disputed"];
+
+            if ($rmaResolution === 'return') {
+                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) use ($alwaysExclude) {
+                    return ! in_array($status, array_merge($alwaysExclude, ["Item Canceled", "Canceled", "Replaced"]));
+                });
+            } elseif ($rmaResolution === 'exchange') {
+                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) use ($alwaysExclude) {
+                    return ! in_array($status, array_merge($alwaysExclude, ["Item Canceled", "Canceled", "Paid"]));
+                });
+            } elseif ($rmaResolution === 'cancel-items') {
+                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) use ($alwaysExclude) {
+                    return ! in_array($status, array_merge($alwaysExclude, ["Received Package", "Canceled", "Paid", "Replaced"]));
                 });
             } else {
-                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
-                    return $status !== "Received Package" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending" && $status !== "Disputed";
+                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) use ($alwaysExclude) {
+                    return ! in_array($status, array_merge($alwaysExclude, ["Item Canceled", "Canceled", "Paid", "Replaced"]));
                 });
             }
         }

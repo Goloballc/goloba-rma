@@ -25,21 +25,49 @@
         $statusArr = [];
 
         $rmaActiveStatus = $rmaActiveStatus->toarray();
-        
+
+        // Resolución del primer producto (todos los items de un RMA comparten resolución)
+        $rmaResolution = $productDetails['0']?->resolution ?? '';
+
         if ($rmaData['rma_status'] == 'Pending') {
 
             $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
                 return in_array($status, ["Accept", "Declined"]);
             });
         } else {
-            if ($productDetails['0']?->resolution != 'cancel-items') {
-                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
-                    return $status !== "Item Canceled" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending" && $status !== "Disputed";
+            // Estados finales que nunca deben aparecer como opciones de cambio
+            $alwaysExclude = ["Accept", "Declined", "Pending", "Disputed"];
+
+            if ($rmaResolution === 'return') {
+                // Devolución: mostrar Paid, excluir Replaced y estados no aplicables
+                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) use ($alwaysExclude) {
+                    return ! in_array($status, array_merge($alwaysExclude, [
+                        "Item Canceled", "Canceled", "Replaced",
+                    ]));
                 });
-    
+
+            } elseif ($rmaResolution === 'exchange') {
+                // Garantía/reemplazo: mostrar Replaced, excluir Paid y estados no aplicables
+                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) use ($alwaysExclude) {
+                    return ! in_array($status, array_merge($alwaysExclude, [
+                        "Item Canceled", "Canceled", "Paid",
+                    ]));
+                });
+
+            } elseif ($rmaResolution === 'cancel-items') {
+                // Cancelación: excluir Received Package, Paid y Replaced
+                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) use ($alwaysExclude) {
+                    return ! in_array($status, array_merge($alwaysExclude, [
+                        "Received Package", "Canceled", "Paid", "Replaced",
+                    ]));
+                });
+
             } else {
-                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
-                    return $status!== "Received Package" && $status !== "Canceled" && $status !== "Accept" && $status !== "Declined" && $status !== "Pending" && $status !== "Disputed";
+                // Fallback genérico (resolución desconocida)
+                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) use ($alwaysExclude) {
+                    return ! in_array($status, array_merge($alwaysExclude, [
+                        "Item Canceled", "Canceled", "Paid", "Replaced",
+                    ]));
                 });
             }
         }
