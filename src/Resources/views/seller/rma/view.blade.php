@@ -374,37 +374,19 @@
                 @endif
             @endif
 
-            {{-- ── Cambiar Estado del RMA (solo disponible tras Accept) ──────── --}}
+            {{-- ── Cambiar Estado del RMA ──────────────────────────────────────── --}}
+            {{-- Solo visible para RMA estándar con resolución exchange o cancel-items --}}
             @php
-                $terminales = ['Pending', 'Disputed', 'Declined', 'Paid', 'Replaced', 'Item Canceled', 'Canceled', 'Solved'];
-                $ordenCerrada = in_array($orderDetails['status'] ?? '', ['canceled', 'closed']);
-                $mostrarCambioEstado = ! in_array($rmaData['rma_status'], $terminales) && ! $ordenCerrada;
+                $rmaResolutionForStatus = $productDetails['0']?->resolution ?? '';
+                $esRetracto             = ($rmaData->rma_type ?? '') === 'retracto';
+                $esExchange             = $rmaResolutionForStatus === 'exchange';
+                $esCancelItems          = $rmaResolutionForStatus === 'cancel-items';
+                $mostrarCambioEstado    = ! $esRetracto && ($esExchange || $esCancelItems);
 
                 if ($mostrarCambioEstado) {
-                    $rmaResolution = $productDetails['0']?->resolution ?? '';
-                    $alwaysExclude = ['Pending', 'Accept', 'Declined', 'Disputed'];
-                    $activeArr     = $rmaActiveStatus->toArray();
-
-                    if ($rmaResolution === 'return') {
-                        $activeArr = array_filter($activeArr, fn($s) =>
-                            ! in_array($s, array_merge($alwaysExclude, ['Item Canceled', 'Canceled', 'Replaced']))
-                        );
-                    } elseif ($rmaResolution === 'exchange') {
-                        $activeArr = array_filter($activeArr, fn($s) =>
-                            ! in_array($s, array_merge($alwaysExclude, ['Item Canceled', 'Canceled', 'Paid']))
-                        );
-                    } elseif ($rmaResolution === 'cancel-items') {
-                        $activeArr = array_filter($activeArr, fn($s) =>
-                            ! in_array($s, array_merge($alwaysExclude, ['Received Package', 'Canceled', 'Paid', 'Replaced']))
-                        );
-                    } else {
-                        $activeArr = array_filter($activeArr, fn($s) =>
-                            ! in_array($s, array_merge($alwaysExclude, ['Item Canceled', 'Canceled', 'Paid', 'Replaced']))
-                        );
-                    }
-
-                    $statusArr = array_values($activeArr);
-                    $mostrarCambioEstado = count($statusArr) > 0;
+                    $statusArr = $esExchange
+                        ? ['Dispatched Package', 'Replaced']
+                        : ['Item Canceled'];
                 }
             @endphp
 
