@@ -374,6 +374,82 @@
                 @endif
             @endif
 
+            {{-- ── Cambiar Estado del RMA (solo disponible tras Accept) ──────── --}}
+            @php
+                $terminales = ['Pending', 'Disputed', 'Declined', 'Paid', 'Replaced', 'Item Canceled', 'Canceled', 'Solved'];
+                $ordenCerrada = in_array($orderDetails['status'] ?? '', ['canceled', 'closed']);
+                $mostrarCambioEstado = ! in_array($rmaData['rma_status'], $terminales) && ! $ordenCerrada;
+
+                if ($mostrarCambioEstado) {
+                    $rmaResolution = $productDetails['0']?->resolution ?? '';
+                    $alwaysExclude = ['Pending', 'Accept', 'Declined', 'Disputed'];
+                    $activeArr     = $rmaActiveStatus->toArray();
+
+                    if ($rmaResolution === 'return') {
+                        $activeArr = array_filter($activeArr, fn($s) =>
+                            ! in_array($s, array_merge($alwaysExclude, ['Item Canceled', 'Canceled', 'Replaced']))
+                        );
+                    } elseif ($rmaResolution === 'exchange') {
+                        $activeArr = array_filter($activeArr, fn($s) =>
+                            ! in_array($s, array_merge($alwaysExclude, ['Item Canceled', 'Canceled', 'Paid']))
+                        );
+                    } elseif ($rmaResolution === 'cancel-items') {
+                        $activeArr = array_filter($activeArr, fn($s) =>
+                            ! in_array($s, array_merge($alwaysExclude, ['Received Package', 'Canceled', 'Paid', 'Replaced']))
+                        );
+                    } else {
+                        $activeArr = array_filter($activeArr, fn($s) =>
+                            ! in_array($s, array_merge($alwaysExclude, ['Item Canceled', 'Canceled', 'Paid', 'Replaced']))
+                        );
+                    }
+
+                    $statusArr = array_values($activeArr);
+                    $mostrarCambioEstado = count($statusArr) > 0;
+                }
+            @endphp
+
+            @if ($mostrarCambioEstado)
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-lg font-semibold mb-1">Actualizar estado</h2>
+                    <p class="text-sm text-gray-500 mb-4">
+                        El cliente será notificado automáticamente al guardar el cambio.
+                    </p>
+                    <form
+                        method="POST"
+                        action="{{ route('goloba.seller.rma.save.status') }}"
+                        class="space-y-4"
+                    >
+                        @csrf
+                        <input type="hidden" name="rma_id" value="{{ $rmaData['id'] }}">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Nuevo estado
+                            </label>
+                            <select
+                                name="rma_status"
+                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                required
+                            >
+                                @foreach ($statusArr as $status)
+                                    <option
+                                        value="{{ $status }}"
+                                        {{ $rmaData['rma_status'] === $status ? 'selected' : '' }}
+                                    >
+                                        {{ $status }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <button
+                            type="submit"
+                            class="primary-button px-6 py-2.5"
+                        >
+                            Guardar estado
+                        </button>
+                    </form>
+                </div>
+            @endif
+
         </div>
     </div>
 
@@ -790,112 +866,6 @@
             });
         </script>
     </div>
-
-    <!-- Selector de Estado RMA (similar al admin) -->
-    @php
-        $statusArr = [];
-        $rmaActiveStatus = $rmaActiveStatus->toarray();
-        $rmaResolution   = $productDetails['0']?->resolution ?? '';
-
-        if ($rmaData['rma_status'] == 'Pending') {
-            $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) {
-                return in_array($status, ["Accept", "Declined"]);
-            });
-        } else {
-            $alwaysExclude = ["Accept", "Declined", "Pending", "Disputed"];
-
-            if ($rmaResolution === 'return') {
-                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) use ($alwaysExclude) {
-                    return ! in_array($status, array_merge($alwaysExclude, ["Item Canceled", "Canceled", "Replaced"]));
-                });
-            } elseif ($rmaResolution === 'exchange') {
-                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) use ($alwaysExclude) {
-                    return ! in_array($status, array_merge($alwaysExclude, ["Item Canceled", "Canceled", "Paid"]));
-                });
-            } elseif ($rmaResolution === 'cancel-items') {
-                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) use ($alwaysExclude) {
-                    return ! in_array($status, array_merge($alwaysExclude, ["Received Package", "Canceled", "Paid", "Replaced"]));
-                });
-            } else {
-                $rmaActiveStatus = array_filter($rmaActiveStatus, function ($status) use ($alwaysExclude) {
-                    return ! in_array($status, array_merge($alwaysExclude, ["Item Canceled", "Canceled", "Paid", "Replaced"]));
-                });
-            }
-        }
-        $statusArr = array_values($rmaActiveStatus);
-    @endphp
-
-    @if (
-        $rmaData['rma_status'] != 'Solved' 
-        && $rmaData['status'] != 1
-        && $rmaData['order']['status'] != 'canceled' 
-        && $rmaData['order']['status'] != 'closed'
-    )
-        @php($flag = 0)
-        
-        @if ($rmaData['rma_status'] == 'Item Canceled')
-            @php($flag = 0)
-        @elseif ($rmaData['rma_status'] == 'Received Package')
-            @php($flag = 0)
-        @elseif ($rmaData['rma_status'] == 'Declined')
-            @php($flag = 0)
-        @elseif ($rmaData['rma_status'] == 'Canceled')
-            @php($flag = 0)
-        @elseif ($rmaData['status'] == 1 && $rmaData['resolution'] == 'Replace')
-            @php($flag = 0)
-        @elseif ($rmaData['resolution'] == 'Return' && $rmaData['status'] == 1)
-            @php($flag = 0)
-        @else
-            @php($flag = 1)
-        @endif
-
-        @if (
-            ! empty($flag)
-            && $flag == 1
-            && $rmaData['status'] == 0
-            && $orderDetails['status'] != 'closed'
-        )
-            <div class="mt-6 bg-white rounded-lg shadow p-6">
-                <h2 class="text-lg font-semibold mb-4">Cambiar Estado del RMA</h2>
-                
-                <form 
-                    method="POST" 
-                    action="{{ route('goloba.seller.rma.save.status') }}"
-                    class="space-y-4"
-                >
-                    @csrf
-                    <input type="hidden" name="rma_id" value="{{ $rmaData['id'] }}">
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">
-                            Estado del RMA
-                        </label>
-                        <select 
-                            name="rma_status" 
-                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            required
-                        >
-                            @foreach ($statusArr as $status)
-                                <option value="{{ $status }}" {{ $rmaData['rma_status'] == $status ? 'selected' : '' }}>
-                                    {{ $status }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <p class="mt-2 text-sm text-gray-500">
-                            Selecciona el nuevo estado para el RMA. El cliente será notificado automáticamente.
-                        </p>
-                    </div>
-
-                    <button 
-                        type="submit" 
-                        class="w-full primary-button px-5 py-2.5"
-                    >
-                        Actualizar Estado
-                    </button>
-                </form>
-            </div>
-        @endif
-    @endif
 
     {{-- Preview de imágenes del formulario de disputa --}}
     <script>

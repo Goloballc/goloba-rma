@@ -309,7 +309,7 @@ class RMAController extends Controller
         $sellerId = auth()->guard('seller')->user()->id;
         $status = request()->input();
 
-        $rma = $this->rmaRepository->find($status['rma_id']);
+        $rma = RMA::find($status['rma_id']);
         
         // Validar que el RMA pertenece al vendedor
         if (!$rma || !$rma->belongsToSeller($sellerId)) {
