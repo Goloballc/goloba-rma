@@ -774,7 +774,13 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                     class="gap-5" 
                     v-if="isChecked.length == rma_reason_id.length && rma_reason_id.length && rma_qty.length"
                 >
-                    <!-- Delivery Status -->
+                    {{--
+                        Goloba: En Goloba los RMAs solo se crean sobre pedidos entregados.
+                        El campo order_status siempre es "1" — se setea en getOrderItems()
+                        para que el v-if="orderStatus == '1'" de abajo funcione.
+                        El select se oculta con v-if="false" para no mostrarlo al cliente.
+                    --}}
+                    <template v-if="false">
                     <x-shop::form.control-group>
                         <x-shop::form.control-group.label class="required text-sm mt-4 flex">
                             @lang('rma::app.admin.configuration.index.sales.rma.product-delivery-status')
@@ -805,6 +811,7 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
 
                         <x-shop::form.control-group.error name="order_status" class="flex"/>
                     </x-shop::form.control-group>
+                    </template>
 
                     <div v-if="orderStatus == '1'">
                         {{--
@@ -1271,6 +1278,10 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                                     this.isLoading = false;
                                     
                                     this.products = response.data;
+
+                                    // Goloba: siempre entregado — ocultar el select en el template,
+                                    // setear el valor reactivo para que v-if="orderStatus == '1'" funcione.
+                                    this.orderStatus = '1';
 
                                     // En modo retracto pre-seteamos resolution_type = 'return'
                                     // para cada producto y cargamos los motivos automáticamente,
