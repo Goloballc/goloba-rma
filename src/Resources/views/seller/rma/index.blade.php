@@ -34,6 +34,12 @@
                 ->paginate(15);
         @endphp
 
+        @php
+            $rmaStatuses = DB::table('rma_status')
+                ->pluck('color', 'title')
+                ->toArray();
+        @endphp
+
         <div class="bg-white rounded-lg shadow overflow-hidden">
             @if($rmas->count() > 0)
                 <table class="w-full">
@@ -87,14 +93,10 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 @php
-                                    $badgeClass = match($rma->rma_status) {
-                                        'Pending' => 'bg-yellow-500 text-white',
-                                        'Accept' => 'bg-green-600 text-white',
-                                        'Declined' => 'bg-red-600 text-white',
-                                        default => 'bg-gray-600 text-white',
-                                    };
+                                    $statusColor = $rmaStatuses[$rma->rma_status] ?? '#6b7280';
                                 @endphp
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ $badgeClass }}">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full text-white"
+                                      style="background-color: {{ $statusColor }};">
                                     {{ $rma->rma_status }}
                                 </span>
                             </td>
