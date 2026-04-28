@@ -4,9 +4,15 @@ namespace Goloba\GolobaRMA\Http\Controllers\Shop;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Event;
+use Goloba\GolobaRMA\Mail\NewRequestCustomer;
+use Goloba\GolobaRMA\Mail\NewRequestSeller;
+use Goloba\GolobaRMA\Mail\RmaMailHelper;
 use Goloba\GolobaRMA\Services\RetractoService;
 use Goloba\ServientregaTracking\Services\ServientregaTrackingService;
 use Webkul\RMA\Http\Controllers\Customer\CustomerController;
+use Webkul\RMA\Mail\CustomerRmaCreationEmail;
 
 /**
  * Extiende CustomerController del paquete RMA de Bagisto para:
@@ -161,11 +167,18 @@ class GolobaCustomerController extends CustomerController
         // Calcular datos de retracto ANTES de llamar al padre
         $retractoData = $this->buildRetractoData($orderId);
 
-        $response = parent::store();
+        $this->normalizeResolutionType();
+
+        if (! request()->has('order_status')) {
+            request()->merge(['order_status' => '1']);
+        }
+
+        $response = $this->callParentStoreSuppressingVendorMail('store');
 
         // Solo actualizar si el padre persistió el RMA exitosamente
         if ($response instanceof JsonResponse && $response->getStatusCode() === 200) {
             $this->persistRetractoData($orderId, $retractoData);
+            $this->sendNewRequestEmails($orderId, $retractoData['rma_type']);
         }
 
         return $response;
@@ -195,10 +208,17 @@ class GolobaCustomerController extends CustomerController
 
         $retractoData = $this->buildRetractoData($orderId);
 
-        $response = parent::storeGuest();
+        $this->normalizeResolutionType();
+
+        if (! request()->has('order_status')) {
+            request()->merge(['order_status' => '1']);
+        }
+
+        $response = $this->callParentStoreSuppressingVendorMail('storeGuest');
 
         if ($response instanceof JsonResponse && $response->getStatusCode() === 200) {
             $this->persistRetractoData($orderId, $retractoData);
+            $this->sendNewRequestEmails($orderId, $retractoData['rma_type']);
         }
 
         return $response;
@@ -284,6 +304,101 @@ class GolobaCustomerController extends CustomerController
     // =========================================================================
     // HELPERS INTERNOS
     // =========================================================================
+
+    /**
+     * Llama a parent::store() o parent::storeGuest() suprimiendo el correo
+     * del vendor (CustomerRmaCreationEmail) sin interferir con el mailer real.
+     *
+     * Estrategia: escuchamos MessageSending e identificamos el correo del vendor
+     * por su subject hardcodeado ("New RMA Request"). Devolver false desde el
+     * listener cancela el envío en Laravel 10.
+     */
+    private function callParentStoreSuppressingVendorMail(string $method): mixed
+    {
+        Event::listen(
+            \Illuminate\Mail\Events\MessageSending::class,
+            static function (\Illuminate\Mail\Events\MessageSending $event): bool|null {
+                if ($event->message->getSubject() === 'New RMA Request') {
+                    return false; // cancela el envío
+                }
+                return null;
+            }
+        );
+
+        try {
+            return parent::$method();
+        } finally {
+            Event::forget(\Illuminate\Mail\Events\MessageSending::class);
+        }
+    }
+
+    /**
+     * Envía correos de nueva solicitud al cliente y al seller.
+     * Se llama sólo cuando parent::store() respondió HTTP 200.
+     */
+    private function sendNewRequestEmails(int $orderId, string $rmaType): void
+    {
+        $rma = \DB::table('rma')->where('order_id', $orderId)->orderByDesc('id')->first();
+        if (! $rma) {
+            return;
+        }
+
+        $order      = $this->orderRepository->find($orderId);
+        $items      = $this->rmaItemsRepository->findWhere(['rma_id' => $rma->id]);
+        $orderItems = $this->orderItemRepository->findWhereIn('id', $items->pluck('order_item_id')->toArray());
+
+        $rmaData = [
+            'rma_id'          => $rma->id,
+            'order_id'        => $orderId,
+            'rma_type'        => $rmaType,
+            'order_items'     => $orderItems,
+            'rma_qty'         => $items->pluck('quantity')->toArray(),
+            'resolution_type' => $items->pluck('resolution')->toArray(),
+            'reason'          => $items->map(fn($i) => optional(\Webkul\RMA\Models\RMAReasons::find($i->rma_reason_id))->title ?? '')->toArray(),
+        ];
+
+        // Correo al cliente
+        $customer = auth()->guard('customer')->user();
+        $email    = $customer?->email ?? session()->get('guestEmail', $order?->customer_email);
+        $name     = $customer?->name  ?? ($order ? $order->customer_first_name . ' ' . $order->customer_last_name : 'Cliente');
+
+        if ($email) {
+            RmaMailHelper::queueMail(new NewRequestCustomer(array_merge($rmaData, [
+                'email' => $email,
+                'name'  => $name,
+            ])));
+        }
+
+        // Correo al seller
+        $sellerData = RmaMailHelper::getSellerData($orderId);
+        if ($sellerData) {
+            RmaMailHelper::queueMail(new NewRequestSeller(array_merge($rmaData, $sellerData)));
+        }
+    }
+
+    /**
+     * El modal envía order_item_id, rma_qty, rma_reason_id y resolution_type
+     * como arrays indexados por product_id (ej: rma_qty[547] = 1).
+     * El vendor itera con `foreach ($items as $key => $itemId)` asumiendo que
+     * todos los arrays comparten el mismo $key secuencial (0, 1, 2...).
+     * Este método reindexea todos esos arrays para que el vendor los acepte.
+     */
+    private function normalizeResolutionType(): void
+    {
+        $fields = ['order_item_id', 'rma_qty', 'rma_reason_id', 'resolution_type'];
+        $merge  = [];
+
+        foreach ($fields as $field) {
+            $raw = request()->input($field);
+            if (is_array($raw) && array_keys($raw) !== range(0, count($raw) - 1)) {
+                $merge[$field] = array_values($raw);
+            }
+        }
+
+        if (! empty($merge)) {
+            request()->merge($merge);
+        }
+    }
 
     /**
      * Obtiene la fecha de entrega del microservicio para la guía de una orden.
