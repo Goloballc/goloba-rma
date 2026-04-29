@@ -3,11 +3,17 @@
 use Illuminate\Support\Facades\Route;
 use Goloba\GolobaRMA\Http\Controllers\Admin\HolidaysController;
 use Goloba\GolobaRMA\Http\Controllers\Admin\DisputeController;
+use Goloba\GolobaRMA\Http\Controllers\Admin\RmaController as GolobaAdminRmaController;
 
 Route::group([
     'middleware' => ['web', 'admin'],
     'prefix'     => config('app.admin_url') . '/rma',
 ], function () {
+
+    // ── Override: cambio de estado por admin — notifica también al seller ────
+    // Registrado DESPUÉS que el vendor → este nombre gana la prioridad
+    Route::post('save-rma-status', [GolobaAdminRmaController::class, 'saveRmaStatus'])
+        ->name('admin.sales.rma.save.status');
 
     // ── Disputas ─────────────────────────────────────────────────────────────
     Route::controller(DisputeController::class)->prefix('disputes')->group(function () {

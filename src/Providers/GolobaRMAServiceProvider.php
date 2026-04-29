@@ -24,6 +24,10 @@ class GolobaRMAServiceProvider extends ServiceProvider
         // Namespace de vistas admin (goloba-rma::admin.*)
         $this->loadViewsFrom(__DIR__ . '/../Resources/views', 'goloba-rma');
 
+        // Traducciones del paquete bajo el namespace 'goloba-rma'
+        // Uso: trans('goloba-rma::app.mail.new-request.greeting', ['name' => $name])
+        $this->loadTranslationsFrom(__DIR__ . '/../Resources/lang', 'goloba-rma');
+
         // Registrar config de categorías de retracto bajo la clave 'retracto'
         $this->mergeConfigFrom(__DIR__ . '/../Config/retracto.php', 'retracto');
 

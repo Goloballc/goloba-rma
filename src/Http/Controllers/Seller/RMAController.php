@@ -11,6 +11,9 @@ use Webkul\Marketplace\Http\Controllers\Shop\Controller;
 use Webkul\Sales\Repositories\{OrderRepository, RefundRepository};
 use Webkul\Sales\Repositories\OrderItemRepository;
 use Goloba\GolobaRMA\DataGrids\Seller\SellerRmaDataGrid;
+use Goloba\GolobaRMA\Mail\DisputeCreatedAdmin;
+use Goloba\GolobaRMA\Mail\RmaMailHelper;
+use Goloba\GolobaRMA\Mail\StatusUpdate;
 use Webkul\RMA\Mail\CustomerRMAStatusEmail;
 use Webkul\RMA\Repositories\{
     RMAAdditionalFieldRepository,
@@ -296,6 +299,32 @@ class RMAController extends Controller
             'updated_at' => Carbon::now(),
         ]);
 
+        // Notificar al admin
+        $sellerUser = auth()->guard('seller')->user();
+        RmaMailHelper::queueMail(new DisputeCreatedAdmin([
+            'admin_email'  => core()->getAdminEmailDetails()['email'],
+            'rma_id'       => $data['rma_id'],
+            'order_id'     => $rma->order_id,
+            'seller_name'  => $sellerUser->name ?? $sellerUser->shop_title ?? 'Vendedor',
+            'observations' => $data['observations'],
+        ]));
+
+        // Notificar al cliente que su solicitud entró en revisión por disputa
+        $order = $this->orderRepository->find($rma->order_id);
+        if ($order) {
+            $customerName = trim($order->customer_first_name . ' ' . $order->customer_last_name) ?: 'Cliente';
+            RmaMailHelper::queueMail(new StatusUpdate([
+                'email'       => $order->customer_email,
+                'name'        => $customerName,
+                'rma_id'      => $data['rma_id'],
+                'order_id'    => $rma->order_id,
+                'rma_status'  => 'Disputed',
+                'body'        => 'Tu solicitud está siendo revisada por el equipo de Goloba. Te informaremos el resultado en cuanto tengamos una resolución.',
+                'subject_key' => 'goloba-rma::app.mail.status-update.subject-customer',
+                'view_url'    => route('rma.customer.view', $data['rma_id']),
+            ]));
+        }
+
         session()->flash('success', 'Disputa enviada. El administrador revisará tu evidencia.');
         return redirect()->route('goloba.seller.rma.view', $data['rma_id']);
     }
@@ -436,7 +465,22 @@ class RMAController extends Controller
 
         if ($updateStatus) {
             try {
+                // Notificar al cliente (comportamiento heredado del vendor)
                 Mail::queue(new CustomerRMAStatusEmail($mailDetails));
+
+                // Notificar también al seller sobre el cambio que él mismo generó
+                $sellerUser = auth()->guard('seller')->user();
+                RmaMailHelper::queueMail(new StatusUpdate([
+                    'email'       => $sellerUser->email,
+                    'name'        => $sellerUser->name ?? $sellerUser->shop_title ?? 'Vendedor',
+                    'rma_id'      => $status['rma_id'],
+                    'order_id'    => $orderId,
+                    'rma_status'  => $status['rma_status'],
+                    'body'        => trans('goloba-rma::app.mail.status-update.body-seller'),
+                    'subject_key' => 'goloba-rma::app.mail.status-update.subject-seller',
+                    'view_url'    => url('/seller/rma/' . $status['rma_id']),
+                ]));
+
                 session()->flash('success', trans('rma::app.admin.sales.rma.all-rma.view.update-success'));
             } catch (\Exception $e) {
                 session()->flash('success', trans('rma::app.admin.sales.rma.all-rma.view.update-success'));
