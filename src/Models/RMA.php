@@ -3,7 +3,6 @@
 namespace Goloba\GolobaRMA\Models;
 
 use Webkul\RMA\Models\RMA as BaseRMA;
-use Carbon\Carbon;
 
 class RMA extends BaseRMA
 {
@@ -30,44 +29,7 @@ class RMA extends BaseRMA
     ];
 
     /**
-     * Determinar automáticamente el tipo de RMA según los días transcurridos
-     * desde la compra.
-     *
-     * @param int $orderId
-     * @return string 'retracto' o 'standard'
-     */
-    public static function determineRmaType(int $orderId): string
-    {
-        $order = \Webkul\Sales\Models\Order::find($orderId);
-        
-        if (!$order) {
-            return 'standard';
-        }
-
-        $orderDate = Carbon::parse($order->created_at);
-        $currentDate = Carbon::now();
-        
-        // Calcular días hábiles transcurridos (excluyendo sábados y domingos)
-        $businessDays = 0;
-        $tempDate = $orderDate->copy();
-        
-        while ($tempDate->lte($currentDate)) {
-            // Si no es sábado (6) ni domingo (0)
-            if ($tempDate->dayOfWeek !== Carbon::SATURDAY && $tempDate->dayOfWeek !== Carbon::SUNDAY) {
-                $businessDays++;
-            }
-            $tempDate->addDay();
-        }
-
-        // En Colombia, el derecho de retracto es de 5 días hábiles
-        return $businessDays <= 5 ? 'retracto' : 'standard';
-    }
-
-    /**
-     * Verificar si este RMA pertenece a un vendedor específico
-     *
-     * @param int $sellerId
-     * @return bool
+     * Verificar si este RMA pertenece a un vendedor específico.
      */
     public function belongsToSeller(int $sellerId): bool
     {
