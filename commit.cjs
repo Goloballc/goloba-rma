@@ -1,3 +1,10 @@
 const { execSync } = require('child_process');
-execSync('git add -A', { stdio: 'inherit' });
-execSync('git commit -m "fix(rma): seller index status badges use hex colors from rma_status table"', { stdio: 'inherit' });
+const path = 'C:\\Users\\inkis\\Herd\\goloba-prod\\packages\\Goloba\\GolobaRMA';
+
+try {
+    execSync('git add -A', { cwd: path, stdio: 'inherit' });
+    execSync('git commit -m "feat(rma): seal checkbox in standard modal; restrict seller status block to accepted RMAs"', { cwd: path, stdio: 'inherit' });
+    console.log('Commit exitoso');
+} catch (e) {
+    console.error('Error:', e.message);
+}

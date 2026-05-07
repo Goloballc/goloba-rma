@@ -303,6 +303,32 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                                 <div class="overflow-auto" style="min-height: 400px; max-height: 400px;">
                                     <v-order-items-list :key="refreshComponent" :order-id="isSelect"></v-order-items-list>
                                 </div>
+
+                                {{-- Checkbox de sello para productos condicionados en modal estándar --}}
+                                <div v-if="standard.hasConditional" class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                                    <div class="flex items-start gap-3">
+                                        <span class="mt-0.5 text-amber-500 text-xl">⚠️</span>
+                                        <div class="w-full">
+                                            <p class="font-medium text-amber-800">Declaración requerida — Productos con sello de seguridad</p>
+                                            <p class="text-sm text-amber-700 mt-1 mb-3">
+                                                Tu pedido incluye cosméticos, perfumes u otros productos con sello de seguridad.
+                                                Para solicitudes de devolución, el reembolso aplica únicamente si el sello
+                                                <strong>no ha sido abierto</strong> (Ley 1480/2011, Art. 47).
+                                            </p>
+                                            <label class="flex items-start gap-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    v-model="standard.sealIntact"
+                                                    class="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600"
+                                                />
+                                                <span class="text-sm text-amber-800">
+                                                    <strong>Declaro</strong> que el sello de seguridad de todos los productos
+                                                    incluidos en este pedido está intacto y no ha sido abierto.
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
                             </x-slot>
 
                             <x-slot:footer>
@@ -1081,6 +1107,11 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                             hasConditional: false,
                             sealIntact:     false,
                         },
+                        // Datos de categorías condicionadas para el modal estándar
+                        standard: {
+                            hasConditional: false,
+                            sealIntact:     false,
+                        },
                     }
                 },
 
@@ -1121,6 +1152,8 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                                     this.retracto.sealIntact     = false;
                                     this.$refs.rmaModelRetracto.toggle();
                                 } else {
+                                    this.standard.hasConditional = data.hasConditional ?? false;
+                                    this.standard.sealIntact     = false;
                                     this.$refs.rmaModel.toggle();
                                 }
                             })
@@ -1139,7 +1172,17 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                         }
                         this.imageError = null;
 
+                        // Checkbox de sello en modal estándar (si aplica categoría condicionada)
+                        if (this.standard.hasConditional && !this.standard.sealIntact) {
+                            this.$emitter.emit('add-flash', { type: 'error', message: 'Debes declarar que el sello de seguridad está intacto para continuar.' });
+                            return;
+                        }
+
                         let formData = new FormData(this.$refs.rmaSubmit);
+
+                        if (this.standard.hasConditional) {
+                            formData.append('retracto_seal_intact', this.standard.sealIntact ? '1' : '0');
+                        }
 
                         this.rmaFormSubmit = false; 
                         

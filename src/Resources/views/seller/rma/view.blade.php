@@ -381,7 +381,9 @@
                 $esRetracto             = ($rmaData->rma_type ?? '') === 'retracto';
                 $esExchange             = $rmaResolutionForStatus === 'exchange';
                 $esCancelItems          = $rmaResolutionForStatus === 'cancel-items';
-                $mostrarCambioEstado    = ! $esRetracto && ($esExchange || $esCancelItems);
+                $estaAceptada           = ($rmaData->rma_status ?? '') === 'Accept';
+                $tieneDisputa           = isset($dispute) && $dispute !== null;
+                $mostrarCambioEstado    = ! $esRetracto && ($esExchange || $esCancelItems) && $estaAceptada && ! $tieneDisputa;
 
                 if ($mostrarCambioEstado) {
                     $statusArr = $esExchange

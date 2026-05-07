@@ -77,15 +77,15 @@ class GolobaCustomerController extends CustomerController
 
         $deliveryDate = $this->getDeliveryDate($orderId);
 
-        if ($deliveryDate === null || !$this->retractoService->isWithinWindow($deliveryDate)) {
-            return new JsonResponse(['applies' => false]);
-        }
-
         $categoryIds = $this->getOrderCategoryIds($orderId);
         $eligibility = $this->retractoService->checkCategories($categoryIds);
 
+        if ($deliveryDate === null || !$this->retractoService->isWithinWindow($deliveryDate)) {
+            return new JsonResponse(['applies' => false, 'hasConditional' => $eligibility['has_conditional']]);
+        }
+
         if (!$eligibility['eligible']) {
-            return new JsonResponse(['applies' => false]);
+            return new JsonResponse(['applies' => false, 'hasConditional' => $eligibility['has_conditional']]);
         }
 
         $remaining = $this->retractoService->remainingBusinessDays($deliveryDate);
