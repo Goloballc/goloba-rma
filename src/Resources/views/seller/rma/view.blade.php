@@ -378,17 +378,31 @@
             {{-- Solo visible para RMA estándar con resolución exchange o cancel-items --}}
             @php
                 $rmaResolutionForStatus = $productDetails['0']?->resolution ?? '';
+                $currentStatus          = $rmaData->rma_status ?? '';
                 $esRetracto             = ($rmaData->rma_type ?? '') === 'retracto';
                 $esExchange             = $rmaResolutionForStatus === 'exchange';
                 $esCancelItems          = $rmaResolutionForStatus === 'cancel-items';
-                $estaAceptada           = ($rmaData->rma_status ?? '') === 'Accept';
                 $tieneDisputa           = isset($dispute) && $dispute !== null;
-                $mostrarCambioEstado    = ! $esRetracto && ($esExchange || $esCancelItems) && $estaAceptada && ! $tieneDisputa;
+
+                // Estados que habilitan el selector por tipo de resolución
+                $estadosExchange    = ['Accept', 'Dispatched Package'];
+                $estadosCancelItems = ['Accept'];
+
+                $estaEnEstadoValido = $esExchange
+                    ? in_array($currentStatus, $estadosExchange)
+                    : ($esCancelItems ? in_array($currentStatus, $estadosCancelItems) : false);
+
+                $mostrarCambioEstado = ! $esRetracto && $estaEnEstadoValido && ! $tieneDisputa;
 
                 if ($mostrarCambioEstado) {
-                    $statusArr = $esExchange
-                        ? ['Dispatched Package', 'Replaced']
-                        : ['Item Canceled'];
+                    if ($esExchange) {
+                        // Mostrar solo el estado siguiente al actual
+                        $statusArr = $currentStatus === 'Accept'
+                            ? ['Dispatched Package']
+                            : ['Replaced'];
+                    } else {
+                        $statusArr = ['Item Canceled'];
+                    }
                 }
             @endphp
 

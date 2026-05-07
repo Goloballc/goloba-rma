@@ -35,13 +35,14 @@ return [
 
         // ── Cambio de estado ────────────────────────────────────────────────
         'status-update' => [
-            'subject-customer'  => 'Tu solicitud #:rma_id ha sido actualizada',
-            'subject-seller'    => 'Solicitud #:rma_id actualizada — Pedido #:order_id',
-            'title'             => 'Actualización de solicitud',
-            'greeting'          => 'Hola :name,',
-            'body-customer'     => 'El estado de tu solicitud de devolución/cambio ha cambiado.',
-            'body-seller'       => 'El estado de la solicitud de un cliente ha sido actualizado.',
-            'status-label'      => 'Estado actual:',
+            'subject-customer'          => 'Tu solicitud #:rma_id ha sido actualizada',
+            'subject-seller'            => 'Solicitud #:rma_id actualizada — Pedido #:order_id',
+            'title'                     => '¡Estado actualizado!',
+            'greeting'                  => 'Estimado/a :name,',
+            'body-customer-by-seller'   => 'El estado de tu solicitud de devolución/cambio con ID #:rma_id ha sido actualizado por el vendedor.',
+            'body-customer-by-admin'    => 'El estado de tu solicitud de devolución/cambio con ID #:rma_id ha sido actualizado por el equipo de Goloba.',
+            'body-seller'               => 'El estado de la solicitud con ID #:rma_id ha sido actualizado.',
+            'status-label'              => 'Estado actual:',
             'status-map' => [
                 'Pending'            => 'Pendiente',
                 'Accept'             => 'Aceptada',

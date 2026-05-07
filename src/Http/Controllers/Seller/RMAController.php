@@ -14,7 +14,6 @@ use Goloba\GolobaRMA\DataGrids\Seller\SellerRmaDataGrid;
 use Goloba\GolobaRMA\Mail\DisputeCreatedAdmin;
 use Goloba\GolobaRMA\Mail\RmaMailHelper;
 use Goloba\GolobaRMA\Mail\StatusUpdate;
-use Webkul\RMA\Mail\CustomerRMAStatusEmail;
 use Webkul\RMA\Repositories\{
     RMAAdditionalFieldRepository,
     RMAImagesRepository,
@@ -465,8 +464,17 @@ class RMAController extends Controller
 
         if ($updateStatus) {
             try {
-                // Notificar al cliente (comportamiento heredado del vendor)
-                Mail::queue(new CustomerRMAStatusEmail($mailDetails));
+                // Notificar al cliente con nuestro correo (en lugar del vendor)
+                RmaMailHelper::queueMail(new StatusUpdate([
+                    'email'       => $order->customer_email,
+                    'name'        => $order->customer_first_name . ' ' . $order->customer_last_name,
+                    'rma_id'      => $status['rma_id'],
+                    'order_id'    => $orderId,
+                    'rma_status'  => $status['rma_status'],
+                    'body'        => trans('goloba-rma::app.mail.status-update.body-customer-by-seller', ['rma_id' => $status['rma_id']]),
+                    'subject_key' => 'goloba-rma::app.mail.status-update.subject-customer',
+                    'view_url'    => route('rma.customer.view', $status['rma_id']),
+                ]));
 
                 // Notificar también al seller sobre el cambio que él mismo generó
                 $sellerUser = auth()->guard('seller')->user();
@@ -476,7 +484,7 @@ class RMAController extends Controller
                     'rma_id'      => $status['rma_id'],
                     'order_id'    => $orderId,
                     'rma_status'  => $status['rma_status'],
-                    'body'        => trans('goloba-rma::app.mail.status-update.body-seller'),
+                    'body'        => trans('goloba-rma::app.mail.status-update.body-seller', ['rma_id' => $status['rma_id']]),
                     'subject_key' => 'goloba-rma::app.mail.status-update.subject-seller',
                     'view_url'    => url('/seller/rma/' . $status['rma_id']),
                 ]));
