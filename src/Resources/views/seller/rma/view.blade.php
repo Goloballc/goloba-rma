@@ -26,12 +26,14 @@
     </div>
 
     <!-- Estado y Tipo -->
+    @php
+        $statusColor = \DB::table('rma_status')->where('title', $rmaData->rma_status)->value('color') ?? '#6b7280';
+    @endphp
     <div class="mt-4 flex items-center gap-2.5 max-xl:flex-wrap">
-        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium
-            {{ $rmaData->rma_status === 'Pending' ? 'bg-yellow-500 text-white' : '' }}
-            {{ $rmaData->rma_status === 'Accept' ? 'bg-green-600 text-white' : '' }}
-            {{ $rmaData->rma_status === 'Declined' ? 'bg-red-600 text-white' : '' }}
-        ">
+        <span
+            class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium text-white"
+            style="background-color: {{ $statusColor }};"
+        >
             {{ $rmaData->rma_status }}
         </span>
 
@@ -471,16 +473,11 @@
 
             <!-- Estado Actual -->
             <div class="flex gap-4">
-                <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full 
-                    {{ $rmaData->rma_status === 'Pending' ? 'bg-yellow-100' : '' }}
-                    {{ $rmaData->rma_status === 'Accept' ? 'bg-green-100' : '' }}
-                    {{ $rmaData->rma_status === 'Declined' ? 'bg-red-100' : '' }}
-                ">
-                    <svg class="h-5 w-5
-                        {{ $rmaData->rma_status === 'Pending' ? 'text-yellow-600' : '' }}
-                        {{ $rmaData->rma_status === 'Accept' ? 'text-green-600' : '' }}
-                        {{ $rmaData->rma_status === 'Declined' ? 'text-red-600' : '' }}
-                    " fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div
+                    class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full"
+                    style="background-color: {{ $statusColor }}1a;"
+                >
+                    <svg class="h-5 w-5" style="color: {{ $statusColor }};" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                 </div>
