@@ -94,9 +94,9 @@ class SellerRmaDataGrid extends DataGrid
             'filterable' => true,
             'sortable'   => true,
             'closure'    => function ($row) {
-                return $row->rma_type === 'retracto' 
-                    ? '<span class="badge badge-info">Derecho de Retracto</span>' 
-                    : '<span class="badge badge-secondary">Estándar</span>';
+                return $row->rma_type === 'retracto'
+                    ? '<p class="label-active" style="background:#1d4ed8;">Derecho de Retracto</p>'
+                    : '<p class="label-active" style="background:#6b7280;">Estándar</p>';
             },
         ]);
 
@@ -108,13 +108,11 @@ class SellerRmaDataGrid extends DataGrid
             'filterable' => true,
             'sortable'   => true,
             'closure'    => function ($row) {
-                $statusClass = match($row->rma_status) {
-                    'Pending' => 'warning',
-                    'Accept' => 'success',
-                    'Declined' => 'danger',
-                    default => 'secondary',
-                };
-                return '<span class="badge badge-' . $statusClass . '">' . $row->rma_status . '</span>';
+                $statusColor = \DB::table('rma_status')
+                    ->where('title', $row->rma_status)
+                    ->value('color') ?? '#6b7280';
+
+                return '<p class="label-active" style="background:' . $statusColor . ';">' . $row->rma_status . '</p>';
             },
         ]);
 
