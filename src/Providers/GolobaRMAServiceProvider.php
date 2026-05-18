@@ -36,9 +36,6 @@ class GolobaRMAServiceProvider extends ServiceProvider
         $this->loadViewsFrom(__DIR__ . '/../Resources/views', 'goloba-rma');
         $this->loadTranslationsFrom(__DIR__ . '/../Resources/lang', 'goloba-rma');
 
-        // Anteponer nuestras vistas al namespace 'rma' del vendor para tener prioridad
-        view()->prependNamespace('rma', __DIR__ . '/../Resources/views');
-
         $this->mergeConfigFrom(__DIR__ . '/../Config/retracto.php', 'retracto');
         $this->mergeConfigFrom(__DIR__ . '/../Config/admin-menu.php', 'menu.admin');
         $this->mergeConfigFrom(__DIR__ . '/../Config/seller-menu.php', 'menu.seller');
