@@ -4,7 +4,6 @@ namespace Goloba\GolobaRMA\Http\Controllers\Seller;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Event;
 use Illuminate\View\View;
 use Webkul\Marketplace\Http\Controllers\Shop\Controller;
@@ -220,14 +219,18 @@ class RMAController extends Controller
         }
 
         $order = $this->orderRepository->find($rma->order_id);
-        try {
-            Mail::queue(new CustomerRMAStatusEmail([
-                'name'       => $order->customer_first_name . ' ' . $order->customer_last_name,
-                'email'      => $order->customer_email,
-                'rma_id'     => $data['rma_id'],
-                'rma_status' => $data['rma_status'],
+        if ($order) {
+            RmaMailHelper::queueMail(new StatusUpdate([
+                'email'       => $order->customer_email,
+                'name'        => trim($order->customer_first_name . ' ' . $order->customer_last_name) ?: 'Cliente',
+                'rma_id'      => $data['rma_id'],
+                'order_id'    => $rma->order_id,
+                'rma_status'  => $data['rma_status'],
+                'body'        => trans('goloba-rma::app.mail.status-update.body-customer-by-seller', ['rma_id' => $data['rma_id']]),
+                'subject_key' => 'goloba-rma::app.mail.status-update.subject-customer',
+                'view_url'    => route('rma.customer.view', $data['rma_id']),
             ]));
-        } catch (\Exception $e) {}
+        }
 
         session()->flash('success', 'RMA aceptada exitosamente.');
         return redirect()->route('goloba.seller.rma.view', $data['rma_id']);
