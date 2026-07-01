@@ -25,6 +25,14 @@ use Webkul\RMA\DataGrids\Shop\OrderRMADataGrid as BaseOrderRMADataGrid;
  * este filtro solo evita mostrar en el listado órdenes que de todas formas
  * serían rechazadas al intentar crear la solicitud.
  *
+ * También se excluyen órdenes que ya superaron la ventana de devolución
+ * (orders.created_at + sales.rma.setting.default_allow_days). Esta ventana
+ * es la misma que ya calcula el JS del modal (calculateReturnWindow) para
+ * mostrar "Not Allowed" — se basa en la fecha de creación de la orden, NO
+ * en la fecha de entrega real. El vendor no la valida en el servidor, solo
+ * la usa para deshabilitar el checkbox en el modal; este filtro evita que
+ * la orden aparezca en el listado para empezar.
+ *
  * Órdenes pending/processing no deben aparecer aquí: si el cliente
  * quiere cancelar antes del envío, debe usar el flujo de cancelación
  * de orden, no el de RMA/devolución.
@@ -49,6 +57,18 @@ class OrderRMADataGrid extends BaseOrderRMADataGrid
                 ->whereColumn('shipments.order_id', 'orders.id')
                 ->where('shipments.status', 'delivered');
         });
+
+        // Excluir órdenes que ya superaron la ventana de devolución
+        // configurada en el admin (mismo cálculo que usa el modal en JS).
+        $defaultAllowedDays = (int) core()->getConfigData('sales.rma.setting.default_allow_days');
+
+        if ($defaultAllowedDays > 0) {
+            $queryBuilder->where(
+                'orders.created_at',
+                '>=',
+                now()->subDays($defaultAllowedDays)
+            );
+        }
 
         return $queryBuilder;
     }
