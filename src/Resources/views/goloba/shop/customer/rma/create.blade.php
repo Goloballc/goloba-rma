@@ -335,9 +335,17 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                             </template>
 
                             <!-- Modal Footer -->
-                            <template v-slot:footer>
+                            <template v-slot:footer="{ toggle }">
                                 <div class="bg-white p-4 max-sm:py-3 max-sm:px-4">
-                                    <div class="flex justify-end">
+                                    <div class="flex justify-end gap-3">
+                                        <button
+                                            type="button"
+                                            @click="toggle"
+                                            class="secondary-button"
+                                        >
+                                            Cancelar
+                                        </button>
+
                                         <button
                                             type="submit"
                                             :disabled="!rmaFormButton || !rmaFormSubmit"
@@ -425,9 +433,17 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                             </div>
                         </template>
 
-                        <template v-slot:footer>
+                        <template v-slot:footer="{ toggle }">
                             <div class="bg-white p-4 max-sm:py-3 max-sm:px-4">
-                                <div class="flex justify-end">
+                                <div class="flex justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        @click="toggle"
+                                        class="secondary-button"
+                                    >
+                                        Cancelar
+                                    </button>
+
                                     <button
                                         type="button"
                                         :disabled="!rmaFormButton || !rmaFormSubmit"
@@ -1462,7 +1478,7 @@ $customAttributes = app('Webkul\RMA\Repositories\RmaCustomFieldRepository')->wit
                             </div>
 
                             <!-- Footer: fijo, no scrollea -->
-                            <slot name="footer"></slot>
+                            <slot name="footer" :toggle="toggle"></slot>
                         </div>
                     </div>
                 </transition>
